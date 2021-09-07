@@ -56,6 +56,71 @@ class CILightnessInfo: CIFilter {
     }
 }
 
+class CIGetOnesideEyebowMatte: CIFilter {
+    // hairMatte
+    var inputImage: CIImage?
+    // skinMatte
+    var backgroundImage: CIImage?
+    var eyebowPoints = Array<CGPoint>()
+    
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage
+              , let backgroundImage = backgroundImage
+              , eyebowPoints.count >= 6
+        else { return nil }
+        
+        print(eyebowPoints)
+        let p1 = eyebowPoints[0]
+        let p2 = eyebowPoints[1]
+        let p3 = eyebowPoints[2]
+        let p4 = eyebowPoints[3]
+        let p5 = eyebowPoints[4]
+        let p6 = eyebowPoints[5]
+        
+        let url = Bundle.main.url(forResource: "default", withExtension: "metallib")!
+        let data = try! Data(contentsOf: url)
+        let arguments = [inputImage, backgroundImage, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, p5.x, p5.y, p6.x, p6.y] as [Any]
+        let kernel = try! CIKernel(functionName: "getEyebowMatte", fromMetalLibraryData: data)
+        let outputImage = kernel.apply(extent: inputImage.extent,
+                                       roiCallback: { index, rect in
+                                        return inputImage.extent
+                                       },
+                                       arguments: arguments)
+
+        return outputImage!
+    }
+}
+
+class CIGetEyebowMatte: CIFilter {
+    // hairMatte
+    var inputImage: CIImage?
+    // skinMatte
+    var backgroundImage: CIImage?
+    var rightEyebowPoints = Array<CGPoint>()
+    var leftEyebowPoints = Array<CGPoint>()
+
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage
+              , let backgroundImage = backgroundImage
+              , rightEyebowPoints.count >= 6
+              , leftEyebowPoints.count >= 6
+        else { return nil }
+        
+        let addFilter = CIFilter.additionCompositing()
+        
+        let eyebowFilter = CIGetOnesideEyebowMatte()
+        eyebowFilter.inputImage = inputImage
+        eyebowFilter.backgroundImage = backgroundImage
+        eyebowFilter.eyebowPoints = rightEyebowPoints
+        addFilter.inputImage = eyebowFilter.outputImage!
+        
+        eyebowFilter.eyebowPoints = leftEyebowPoints
+        addFilter.backgroundImage = eyebowFilter.outputImage!
+
+        return addFilter.outputImage!
+    }
+}
+
 class CIResizeImageWith: CIFilter {
     var inputImage: CIImage?
     var backgroundImage: CIImage?
@@ -65,7 +130,7 @@ class CIResizeImageWith: CIFilter {
         , let backgraoundImage = backgroundImage
         else { return nil }
         
-        // 写真に合わせてMatte画像のスケールを拡大
+        // Matte画像に合わせて写真のスケールを縮小
         let scaleFilter = CIFilter.lanczosScaleTransform()
         let targetHeight = backgraoundImage.extent.height
         let baseHight = inputImage.extent.height
@@ -140,83 +205,6 @@ class CIIkaHairGradient: CIFilter {
         gradientFilter.color1 = maxColor
         compositeFilter.backgroundImage = gradientFilter.outputImage!
             .cropped(to: CGRect(x: 0, y: 0, width: 1000, height: 480))
-
-        return compositeFilter.outputImage!
-    }
-}
-
-class CIChangeHairColor: CIFilter {
-    var inputImage: CIImage?
-    var hairMatteImage: CIImage?
-    var minColor: CIColor?
-    var modeColor: CIColor?
-    var maxColor: CIColor?
-    var printRange = false
-
-    override var outputImage: CIImage? {
-        guard let inputImage = inputImage
-            , let hairMatteImage = hairMatteImage
-            , let minColor = minColor
-            , let modeColor = modeColor
-            , let maxColor = maxColor
-        else { return nil }
-        
-        // 写真に合わせてMatte画像のスケールを拡大
-        let resizeFilter = CIResizeImageWith()
-        resizeFilter.inputImage = inputImage
-        resizeFilter.backgroundImage = hairMatteImage
-        
-        // マット画像で写真を切り抜いて、グレースケール変換
-        let cutoutFilter = CICutoutSegmentGray()
-        cutoutFilter.inputImage = resizeFilter.outputImage!
-        cutoutFilter.matteImage = hairMatteImage
-        
-        // グレースケール画像の明度を最低値・最頻値・最高値で取得
-        let lightnessInfoFilter = CILightnessInfo()
-        lightnessInfoFilter.inputImage = cutoutFilter.outputImage!
-        let lightnessInfo = lightnessInfoFilter.outputImage!.getColorAtPoint()
-        print(lightnessInfo)
-        let minLightness = lightnessInfo.red
-        let maxLightness = lightnessInfo.green
-        let modeLightness = lightnessInfo.blue
-        
-        // グラデーションマップを作成
-        let gradientFilter = CIIkaHairGradient()
-        gradientFilter.minPoint = minLightness
-        gradientFilter.modePoint = modeLightness
-        gradientFilter.maxPoint = maxLightness
-        gradientFilter.minColor = minColor
-        gradientFilter.modeColor = modeColor
-        gradientFilter.maxColor = maxColor
-
-        // グラデーションマップで髪の毛の色を変更
-        let mapFIlter = CIFilter.colorMap()
-        mapFIlter.inputImage = cutoutFilter.outputImage!
-        mapFIlter.gradientImage = gradientFilter.outputImage!
-
-        // 合成用フィルターを定義
-        let compositeFilter = CIFilter.sourceOverCompositing()
-        // 色変更した髪の毛を元写真と合成
-        compositeFilter.inputImage = mapFIlter.outputImage!
-        compositeFilter.backgroundImage = resizeFilter.outputImage!
-
-        if printRange {
-            let newPhoto = compositeFilter.outputImage!
-            // 識別用文字列
-            var text = String()
-            text += String(format: "min(%.4f) - ", minLightness)
-            text += String(format: "max(%.4f)", maxLightness)
-            // 識別用テキストを画像化
-            let textFilter = CIFilter.textImageGenerator()
-            textFilter.fontSize = 100
-            textFilter.text = text
-            let clumpFilter = CIFilter.colorClamp()
-            clumpFilter.inputImage = textFilter.outputImage!
-            clumpFilter.minComponents = CIVector(x: 1, y: 1, z: 1, w: 0)
-            // 合成写真を回転して識別用テキストを合成
-            compositeFilter.inputImage = clumpFilter.outputImage!
-            compositeFilter.backgroundImage = newPhoto
-        }
 
         return compositeFilter.outputImage!
     }

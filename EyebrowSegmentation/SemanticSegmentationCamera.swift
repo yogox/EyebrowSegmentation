@@ -33,7 +33,7 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
     private var currentCameraPosition: CameraPosition
 //    private let context = CIContext(options: nil)
     private let semaphore = DispatchSemaphore(value: 0)
-    var result: (photo: CIImage?, matte: CIImage?)
+    var result: (photo: CIImage?, hairMatte: CIImage?, skinMatte: CIImage?)
 
     override init() {
         currentCameraPosition = .back
@@ -124,17 +124,21 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
         
         // skin, hair, teethのsemanticSegmentationMatteを取得
         if let hairMatte = photo.semanticSegmentationMatte(for: .hair)
-           , let _ = photo.semanticSegmentationMatte(for: .skin)
+           , let skinMatte = photo.semanticSegmentationMatte(for: .skin)
            , let _ = photo.semanticSegmentationMatte(for: .teeth)
         {
             // CIImageを作成
             let hairImage = CIImage(semanticSegmentationMatte: hairMatte, options: [.auxiliarySemanticSegmentationHairMatte: true])
-            self.result = (ciImage.oriented(.right), hairImage!.oriented(.right))
+            let skinImage = CIImage(semanticSegmentationMatte: skinMatte, options: [.auxiliarySemanticSegmentationSkinMatte: true])
+
+            self.result = (ciImage.oriented(.right)
+                           , hairImage!.oriented(.right)
+                           , skinImage!.oriented(.right))
         }
     }
     
     func clearResult() {
-        self.result = (nil, nil)
+        self.result = (nil, nil, nil)
     }
     
     func photoOutput(_ output: AVCapturePhotoOutput,

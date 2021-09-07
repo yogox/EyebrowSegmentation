@@ -115,9 +115,11 @@ struct ContentView: View {
                                     self.segmentationCamera.waitPhoto()
                                     
                                     let result = self.segmentationCamera.result
-                                    if let photo = result.photo, let hairMatte = result.matte {
-                                        self.colorChanger.setupPhoto(photo, hairMatte)
-                                        
+                                    if let photo = result.photo
+                                       , let hairMatte = result.hairMatte
+                                       , let skinMatte = result.skinMatte{
+                                        self.colorChanger.setupPhoto(photo, hairMatte, skinMatte)
+
                                         let colorChart: (CIColor, CIColor, CIColor) = colorMatrix.getCurrentColorChart()
                                         self.colorChanger.setupColor(colorChart)
                                         
