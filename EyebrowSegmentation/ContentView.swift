@@ -47,6 +47,7 @@ struct ContentView: View {
     @State private var showAlert = false
     @State private var buttonGuard = false
     @State private var inProgress = false
+    @State private var errorMessage:String = ""
 
     func enableButtonWithPreview() {
         enableButton()
@@ -128,11 +129,15 @@ struct ContentView: View {
                                             self.colorChanger.makeImage()
                                             if self.colorChanger.image != nil {
                                                 self.selection = .transferPhoto
+                                            } else {
+                                                self.showAlert = true
+                                                errorMessage = colorChanger.removeError()
                                             }
                                         }
                                     } else {
                                         // SemanticSegmentationできなかったら警告
                                         self.showAlert = true
+                                        errorMessage = segmentationCamera.removeError()
                                     }
                                     
                                     inProgress = false
@@ -197,9 +202,10 @@ struct ContentView: View {
                     .navigationBarHidden(/*@START_MENU_TOKEN@*/true/*@END_MENU_TOKEN@*/)
                     .alert(isPresented: $showAlert) {
                         Alert(title: Text("Alert"),
-                              message: Text("No object with segmentation"),
+                              message: Text(errorMessage),
                               dismissButton: .default(Text("OK"), action: {
                                 enableButtonWithPreview()
+                                errorMessage.removeAll()
                               })
                         )
                     }

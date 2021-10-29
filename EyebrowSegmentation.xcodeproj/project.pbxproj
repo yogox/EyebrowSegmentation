@@ -11,6 +11,9 @@
 		C63059AC25E78C3400D3C6D6 /* ColorData.csv in Resources */ = {isa = PBXBuildFile; fileRef = C63059AB25E78C3400D3C6D6 /* ColorData.csv */; };
 		C63059B125E78C7500D3C6D6 /* ColorMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63059B025E78C7500D3C6D6 /* ColorMatrix.swift */; };
 		C63059B925E87F6C00D3C6D6 /* ColorChanger.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63059B825E87F6C00D3C6D6 /* ColorChanger.swift */; };
+		C6320390272B9C2100774CB2 /* CIChangeHairColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C632038F272B9C2100774CB2 /* CIChangeHairColor.swift */; };
+		C6320392272B9CD000774CB2 /* CoreExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6320391272B9CD000774CB2 /* CoreExtension.swift */; };
+		C64F52AA27018F2B0099861C /* Error.swift in Sources */ = {isa = PBXBuildFile; fileRef = C64F52A927018F2B0099861C /* Error.swift */; };
 		C662B5E2252DB2090067CA57 /* SemanticSegmentationCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = C662B5E1252DB2090067CA57 /* SemanticSegmentationCamera.swift */; };
 		C662B5EA252DB2BB0067CA57 /* CIChangeHairColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C662B5E9252DB2BB0067CA57 /* CIChangeHairColor.swift */; };
 		C6CA50B824DAE5C000A35D76 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA50B724DAE5C000A35D76 /* AppDelegate.swift */; };
@@ -43,6 +46,9 @@
 		C63059AB25E78C3400D3C6D6 /* ColorData.csv */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = ColorData.csv; sourceTree = "<group>"; };
 		C63059B025E78C7500D3C6D6 /* ColorMatrix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorMatrix.swift; sourceTree = "<group>"; };
 		C63059B825E87F6C00D3C6D6 /* ColorChanger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorChanger.swift; sourceTree = "<group>"; };
+		C632038F272B9C2100774CB2 /* CIChangeHairColor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CIChangeHairColor.swift; sourceTree = "<group>"; };
+		C6320391272B9CD000774CB2 /* CoreExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreExtension.swift; sourceTree = "<group>"; };
+		C64F52A927018F2B0099861C /* Error.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Error.swift; sourceTree = "<group>"; };
 		C662B5E1252DB2090067CA57 /* SemanticSegmentationCamera.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SemanticSegmentationCamera.swift; sourceTree = "<group>"; };
 		C662B5E9252DB2BB0067CA57 /* CIChangeHairColor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CIChangeHairColor.swift; sourceTree = "<group>"; };
 		C6CA50B424DAE5C000A35D76 /* EyebrowSegmentation.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EyebrowSegmentation.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -103,6 +109,8 @@
 		C6CA50B624DAE5C000A35D76 /* EyebrowSegmentation */ = {
 			isa = PBXGroup;
 			children = (
+				C6320391272B9CD000774CB2 /* CoreExtension.swift */,
+				C632038F272B9C2100774CB2 /* CIChangeHairColor.swift */,
 				C612597C256F73FF00F5D953 /* filter.metal */,
 				C6CA50B724DAE5C000A35D76 /* AppDelegate.swift */,
 				C6CA50B924DAE5C000A35D76 /* SceneDelegate.swift */,
@@ -116,6 +124,7 @@
 				C6CA50BF24DAE5C300A35D76 /* Preview Content */,
 				C63059B025E78C7500D3C6D6 /* ColorMatrix.swift */,
 				C63059B825E87F6C00D3C6D6 /* ColorChanger.swift */,
+				C64F52A927018F2B0099861C /* Error.swift */,
 			);
 			path = EyebrowSegmentation;
 			sourceTree = "<group>";
@@ -265,8 +274,11 @@
 				C662B5E2252DB2090067CA57 /* SemanticSegmentationCamera.swift in Sources */,
 				C6CA50B824DAE5C000A35D76 /* AppDelegate.swift in Sources */,
 				C63059B925E87F6C00D3C6D6 /* ColorChanger.swift in Sources */,
+				C6320390272B9C2100774CB2 /* CIChangeHairColor.swift in Sources */,
 				C612597D256F73FF00F5D953 /* filter.metal in Sources */,
 				C6CA50BA24DAE5C000A35D76 /* SceneDelegate.swift in Sources */,
+				C6320392272B9CD000774CB2 /* CoreExtension.swift in Sources */,
+				C64F52AA27018F2B0099861C /* Error.swift in Sources */,
 				C6CA50BC24DAE5C000A35D76 /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

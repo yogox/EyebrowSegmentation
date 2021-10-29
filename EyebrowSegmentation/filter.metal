@@ -11,16 +11,33 @@ extern "C" { namespace coreimage {
     };
     
     float4 getEyebowMatte(sampler src, sampler bkg,
-                     float p1x, float p1y, float p2x, float p2y, float p3x, float p3y,
-                     float p4x, float p4y, float p5x, float p5y, float p6x, float p6y) {
-        float2 poly[7];
+                                   float p1x, float p1y,
+                                   float p2x, float p2y,
+                                   float p3x, float p3y,
+                                   float p4x, float p4y,
+                                   float p5x, float p5y,
+                                   float p6x, float p6y,
+                                   float p7x, float p7y,
+                                   float p8x, float p8y,
+                                   float p9x, float p9y,
+                                   float p10x, float p10y,
+                                   float p11x, float p11y,
+                                   float p12x, float p12y
+                                   ) {
+        float2 poly[13];
         poly[0] = float2(p1x, p1y);
         poly[1] = float2(p2x, p2y);
         poly[2] = float2(p3x, p3y);
         poly[3] = float2(p4x, p4y);
         poly[4] = float2(p5x, p5y);
         poly[5] = float2(p6x, p6y);
-        poly[6] = float2(p1x, p1y);
+        poly[6] = float2(p7x, p7y);
+        poly[7] = float2(p8x, p8y);
+        poly[8] = float2(p9x, p9y);
+        poly[9] = float2(p10x, p10y);
+        poly[10] = float2(p11x, p11y);
+        poly[11] = float2(p12x, p12y);
+        poly[12] = float2(p1x, p1y);
         float2 point;
         float2 normed_point;
         float vt;
@@ -36,7 +53,141 @@ extern "C" { namespace coreimage {
         point = float2((1 - normed_point.y) * src.size().x, (1 - normed_point.x) * src.size().y);
         
         // 該当ピクセルの内外判定
-        for (i = 0; i < 6; i++) {
+        for (i = 0; i < 12; i++) {
+            if ( (poly[i].y <= point.y && poly[i+1].y > point.y) || (poly[i].y > point.y && poly[i+1].y <= point.y) ) {
+                vt = (point.y - poly[i].y) / (poly[i+1].y - poly[i].y);
+                
+                if ( point.x < (poly[i].x + vt * (poly[i+1].x - poly[i].x)) ) {
+                    cross++;
+                }
+            }
+        }
+        if (cross % 2 == 1) {
+            // 交差回数が奇数＝該当ピクセルがランドマークの内側の場合、髮と肌のMatteを合算・反転して返す
+            // (眉のランドマーク内の髮でも肌でもない領域＝眉の領域)
+            
+            if (src.sample(normed_point).r + bkg.sample(normed_point).r > 1.0) {
+                color = float4(0, 0, 0, 1);
+            } else {
+                rgb = float3(1, 1, 1) - (src.sample(normed_point).rgb + bkg.sample(normed_point).rgb);
+                color = float4(rgb, 1);
+            }
+        } else {
+            // 交差回数が偶数の場合、ランドマークの外側なので黒を返す
+            color = float4(0, 0, 0, 1);
+        }
+
+        return color;
+    }
+
+    float4 getEyebowMatte11P(sampler src, sampler bkg,
+                                   float p1x, float p1y,
+                                   float p2x, float p2y,
+                                   float p3x, float p3y,
+                                   float p4x, float p4y,
+                                   float p5x, float p5y,
+                                   float p6x, float p6y,
+                                   float p7x, float p7y,
+                                   float p8x, float p8y,
+                                   float p9x, float p9y,
+                                   float p10x, float p10y,
+                                   float p11x, float p11y
+                                   ) {
+        float2 poly[12];
+        poly[0] = float2(p1x, p1y);
+        poly[1] = float2(p2x, p2y);
+        poly[2] = float2(p3x, p3y);
+        poly[3] = float2(p4x, p4y);
+        poly[4] = float2(p5x, p5y);
+        poly[5] = float2(p6x, p6y);
+        poly[6] = float2(p7x, p7y);
+        poly[7] = float2(p8x, p8y);
+        poly[8] = float2(p9x, p9y);
+        poly[9] = float2(p10x, p10y);
+        poly[10] = float2(p11x, p11y);
+        poly[11] = float2(p1x, p1y);
+        float2 point;
+        float2 normed_point;
+        float vt;
+        int i;
+        int cross = 0;
+        float4 color;
+        float3 rgb;
+        
+        // 該当ピクセルの座標を正規化された形で取得する
+        normed_point = src.coord();
+        // 正規化されたピクセルを眉のランドマーク座標と比較するために画像のサイズ倍する
+        // CoreImageとMetalで座標系が違うので、Xと(1 - Y)、Yと(1-X)で置換する必要がある
+        point = float2((1 - normed_point.y) * src.size().x, (1 - normed_point.x) * src.size().y);
+        
+        // 該当ピクセルの内外判定
+        for (i = 0; i < 11; i++) {
+            if ( (poly[i].y <= point.y && poly[i+1].y > point.y) || (poly[i].y > point.y && poly[i+1].y <= point.y) ) {
+                vt = (point.y - poly[i].y) / (poly[i+1].y - poly[i].y);
+                
+                if ( point.x < (poly[i].x + vt * (poly[i+1].x - poly[i].x)) ) {
+                    cross++;
+                }
+            }
+        }
+        if (cross % 2 == 1) {
+            // 交差回数が奇数＝該当ピクセルがランドマークの内側の場合、髮と肌のMatteを合算・反転して返す
+            // (眉のランドマーク内の髮でも肌でもない領域＝眉の領域)
+            
+            if (src.sample(normed_point).r + bkg.sample(normed_point).r > 1.0) {
+                color = float4(0, 0, 0, 1);
+            } else {
+                rgb = float3(1, 1, 1) - (src.sample(normed_point).rgb + bkg.sample(normed_point).rgb);
+                color = float4(rgb, 1);
+            }
+        } else {
+            // 交差回数が偶数の場合、ランドマークの外側なので黒を返す
+            color = float4(0, 0, 0, 1);
+        }
+
+        return color;
+    }
+    
+    float4 getEyebowMatte10P(sampler src, sampler bkg,
+                                   float p1x, float p1y,
+                                   float p2x, float p2y,
+                                   float p3x, float p3y,
+                                   float p4x, float p4y,
+                                   float p5x, float p5y,
+                                   float p6x, float p6y,
+                                   float p7x, float p7y,
+                                   float p8x, float p8y,
+                                   float p9x, float p9y,
+                                   float p10x, float p10y
+                                   ) {
+        float2 poly[11];
+        poly[0] = float2(p1x, p1y);
+        poly[1] = float2(p2x, p2y);
+        poly[2] = float2(p3x, p3y);
+        poly[3] = float2(p4x, p4y);
+        poly[4] = float2(p5x, p5y);
+        poly[5] = float2(p6x, p6y);
+        poly[6] = float2(p7x, p7y);
+        poly[7] = float2(p8x, p8y);
+        poly[8] = float2(p9x, p9y);
+        poly[9] = float2(p10x, p10y);
+        poly[10] = float2(p1x, p1y);
+        float2 point;
+        float2 normed_point;
+        float vt;
+        int i;
+        int cross = 0;
+        float4 color;
+        float3 rgb;
+        
+        // 該当ピクセルの座標を正規化された形で取得する
+        normed_point = src.coord();
+        // 正規化されたピクセルを眉のランドマーク座標と比較するために画像のサイズ倍する
+        // CoreImageとMetalで座標系が違うので、Xと(1 - Y)、Yと(1-X)で置換する必要がある
+        point = float2((1 - normed_point.y) * src.size().x, (1 - normed_point.x) * src.size().y);
+        
+        // 該当ピクセルの内外判定
+        for (i = 0; i < 10; i++) {
             if ( (poly[i].y <= point.y && poly[i+1].y > point.y) || (poly[i].y > point.y && poly[i+1].y <= point.y) ) {
                 vt = (point.y - poly[i].y) / (poly[i+1].y - poly[i].y);
                 
@@ -122,4 +273,11 @@ extern "C" { namespace coreimage {
         lightnessInfo = float4(minLightness, modeLightness, maxLightness, 1.0);
         return lightnessInfo;
     }
+    
+    float4 simpleSubtraction(sample_t input, sample_t bkg) {
+        float3 color;
+        color = input.rgb - bkg.rgb;
+        return float4(color, input.a);
+    }
+
 }}

@@ -25,15 +25,15 @@ extension AVCaptureDevice.Position: CaseIterable {
 class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, ObservableObject {
     typealias CameraPosition = AVCaptureDevice.Position
 
-//    @Published var image: UIImage?
     @Published var previewLayer: [CameraPosition: AVCaptureVideoPreviewLayer] = [:]
     private var captureDevice: AVCaptureDevice!
     private var captureSession: [CameraPosition: AVCaptureSession] = [:]
     private var dataOutput: [CameraPosition: AVCapturePhotoOutput] = [:]
     private var currentCameraPosition: CameraPosition
-//    private let context = CIContext(options: nil)
     private let semaphore = DispatchSemaphore(value: 0)
     var result: (photo: CIImage?, hairMatte: CIImage?, skinMatte: CIImage?)
+    
+    private var error = MyError()
 
     override init() {
         currentCameraPosition = .back
@@ -134,6 +134,13 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
             self.result = (ciImage.oriented(.right)
                            , hairImage!.oriented(.right)
                            , skinImage!.oriented(.right))
+            
+            // 画像保存
+//            saveCIImage(ciImage)
+//            saveCIImage(hairImage!)
+//            saveCIImage(skinImage!)
+        } else {
+            self.error.setError(.segmentaionFailure)
         }
     }
     
@@ -168,5 +175,19 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
         if let session = captureSession[currentCameraPosition], session.isRunning == false {
             session.startRunning()
         }
+    }
+    
+    func removeError() -> String {
+        return error.removeError()
+    }
+    
+    // 画像保存用
+    var saveImage = false
+    func saveCIImage(_ image: CIImage) {
+        let context = CIContext(options: nil)
+        guard saveImage == true else { return }
+        let cgImage = context.createCGImage(image, from: image.extent)
+        let uiImage = UIImage(cgImage: cgImage!)
+        UIImageWriteToSavedPhotosAlbum(uiImage, self, nil, nil)
     }
 }

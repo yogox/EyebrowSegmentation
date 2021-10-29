@@ -10,6 +10,46 @@ import SwiftUI
 import CoreImage
 import Vision
 
+extension Array where Element == CGPoint {
+    func getEyebowCenter() -> CGPoint {
+        //        let pointsSum = reduce(CGPoint.zero) {
+        //            return $0 + $1
+        //        }
+        //        let centerPoint = pointsSum / count
+                //                let pointsSum = self[1] + self[4]
+        //                        let centerPoint = pointsSum / 2
+        //        let centerPoint = (self[1] + self[4]) / 2
+        // とりあえず中央の2点からこれくらいの比率で決め打ちがよさげ
+        let centerPoint = (self[1] * 0.15) + (self[4] * 0.85)
+
+        return centerPoint
+    }
+    
+    func expandEyebow(_ rate: CGFloat, aspect: CGFloat = 1.0, angle: CGFloat = 0.0) -> [CGPoint] {
+        guard count == 6 else { return [CGPoint.zero] }
+        let centerPoint = getEyebowCenter()
+        let newPoints = rotateAndExpantFrom(centerPoint, rate: rate, aspect: aspect, angle: angle)
+        
+        return newPoints
+    }
+    
+    func getConnectedEyebowCenter() -> CGPoint {
+        var horizontalElemetns: [CGPoint] = []
+        horizontalElemetns.append(contentsOf: self[2...3])
+        horizontalElemetns.append(contentsOf: self[8...9])
+        let horizontalCenter = horizontalElemetns.average()
+        
+        var verticalElements: [CGPoint] = []
+        verticalElements.append(self[1])
+        verticalElements.append(self[4])
+        verticalElements.append(self[7])
+        verticalElements.append(self[10])
+        let verticalCenter = verticalElements.average()
+
+        let centerPoint = CGPoint(x: horizontalCenter.x, y: verticalCenter.y)
+        return centerPoint
+    }
+}
 
 class FacePartColorist {
     // CIContextをインスタンス毎に持つと重くなるのでColorChanger側で持つ
@@ -104,12 +144,27 @@ class FacePartColorist {
         self.coloredPart = mapFIlter.outputImage!
     }
 
+    func clear() {
+        partImage = nil
+        coloredPart = nil
+        minLightness = nil
+        modeLightness = nil
+        maxLightness = nil
+        minColor = nil
+        modeColor = nil
+        maxColor = nil
+        gradientImage = nil
+    }
 }
 
 class ColorChanger: ObservableObject {
     private let linearContext = CIContext(options: [.workingColorSpace: kCFNull])
     private let sRGBContext = CIContext(options: nil)
+    private let detector: CIDetector?
+    // 普通の眉用
     private let eyebowColorist = FacePartColorist()
+    // 眉を厚くする用
+    private let eyebowColorist2 = FacePartColorist()
 
     @Published var image: UIImage?
     var photoImage: CIImage?
@@ -119,7 +174,25 @@ class ColorChanger: ObservableObject {
     var eyebowMatte: CIImage?
     var rightEyebowPoints: [CGPoint]?
     var leftEyebowPoints: [CGPoint]?
+    var faceRoll: Float = 0
+    var expantionRate: CGFloat = 0.5
+    let eyebowAspect: CGFloat = 2.0
     var printRange = true
+    var thickenEyebow = true
+    let blurRadius:Float = 6
+    let shiftRadius:CGFloat = 5
+    let times = 4
+    var checkSegmentation = false
+    var checkEyebowPart = false
+
+    private var error = MyError()
+
+    init() {
+        detector = CIDetector(ofType: CIDetectorTypeFace, context: linearContext, options: nil)
+        if thickenEyebow == true {
+            print("thickenEyebow")
+        }
+    }
 
     func setupPhoto(_ photo: CIImage, _ hairMatte: CIImage, _ skinMatte: CIImage) {
         self.originalPhoto = photo
@@ -137,46 +210,92 @@ class ColorChanger: ObservableObject {
         
         if let photoImage = self.photoImage, let eyebowMatte = self.eyebowMatte {
             self.eyebowColorist.setupPhoto(photoImage, eyebowMatte)
+            if let partImage = self.eyebowColorist.partImage {
+                // CGContextを複数持ちたくないのでこちらで明度を計算
+                let lightness = computeLightness(partImage)
+                eyebowColorist.setupLightness(lightness)
+                
+                if self.thickenEyebow == true {
+                    // 眉画像を元に厚い眉を作る
+                    let filter = CIShiftAndStack()
+                    filter.inputImage = partImage
+                    filter.matte = eyebowMatte
+                    filter.startAngle = CGFloat(faceRoll)
+                    filter.times = times
+                    filter.radius = shiftRadius
+                    
+                    // matteも厚くする
+                    let matteFilter = CIThickenMatte()
+                    matteFilter.inputImage = eyebowMatte
+                    
+                    self.eyebowColorist2.setupPhoto(filter.outputImage!, matteFilter.outputImage!)
+                    
+                    if let partImage2 = self.eyebowColorist2.partImage {
+                        let lightness2 = computeLightness(partImage2)
+                        eyebowColorist2.setupLightness(lightness2)
+                    }
+                }
+            }
         }
         
-        if let partImage = self.eyebowColorist.partImage {
-            // CGContextを複数持ちたくないのでこちらで明度を計算
-            let lightness = computeLightness(partImage)
-            eyebowColorist.setupLightness(lightness)
-        }
+
     }
     
     func computeLightness(_ inputImage: CIImage) -> (minLightness: CGFloat, modeLightness: CGFloat, maxLightness: CGFloat) {
         let lightnessInfoFilter = CILightnessInfo()
         lightnessInfoFilter.inputImage = inputImage
         let colorInfo = lightnessInfoFilter.outputImage!
-
-        let point = CGPoint(x: 0, y: 0)
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        self.linearContext.render(colorInfo, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: point.x, y: point.y, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
-
-        let redInteger = Int(bitmap[0].description) ?? 0
-        let redc = CGFloat(redInteger)/255
-        let greenInteger = Int(bitmap[1].description) ?? 0
-        let greenc = CGFloat(greenInteger)/255
-        let blueInteger = Int(bitmap[2].description) ?? 0
-        let bluec = CGFloat(blueInteger)/255
-
-        print( (redc, greenc, bluec) )
-        return (minLightness: redc, modeLightness: greenc, maxLightness: bluec)
+        
+        let color = colorInfo.getColorAtPoint(context: linearContext)
+        print(color)
+        
+        return (minLightness: color.red, modeLightness: color.green, maxLightness: color.blue)
     }
     
     func setupColor( _ colorChart: (minColor: CIColor, modeColor: CIColor, maxColor: CIColor) ) {
         self.eyebowColorist.setupColor(colorChart)
+        self.eyebowColorist2.setupColor(colorChart)
     }
     
     func makeImage() {
+        guard checkSegmentation == false else { return }
+        guard checkEyebowPart == false
+        else {
+            let eyebowImage:CIImage?
+            if thickenEyebow  == true {
+                eyebowImage = self.eyebowColorist2.coloredPart
+            } else {
+                eyebowImage = self.eyebowColorist.coloredPart
+            }
+
+            if let ciImage = eyebowImage {
+                // 合成用フィルターを定義
+                let compositeFilter = CIFilter.sourceOverCompositing()
+                let bgImage = CIImage(color: .clear).cropped(to: ciImage.extent)
+                compositeFilter.inputImage = ciImage
+                compositeFilter.backgroundImage = bgImage
+                let image = compositeFilter.outputImage!
+
+                let cgImage = sRGBContext.createCGImage(image, from: ciImage.extent)
+                self.image = UIImage(cgImage: cgImage!)
+            }
+            return
+        }
+        
         guard let photoImage = self.photoImage
         else {
             self.image = nil
             return
         }
-        guard let eyebowImage = self.eyebowColorist.coloredPart
+        
+        let eyebowImage:CIImage?
+        if thickenEyebow  == true {
+            eyebowImage = self.eyebowColorist2.coloredPart
+        } else {
+            eyebowImage = self.eyebowColorist.coloredPart
+        }
+        
+        guard let eyebowImage = eyebowImage
         else {
             let cgImage = linearContext.createCGImage(photoImage, from: photoImage.extent)
             self.image = UIImage(cgImage: cgImage!)
@@ -198,70 +317,56 @@ class ColorChanger: ObservableObject {
     
     func getEyebowMatte() -> CIImage? {
         guard let photoImage = self.photoImage
-              , let hairImage = self.hairMatte
-              , let skinImage = self.skinMatte
+              , let hairMatte = self.hairMatte
+              , let skinMatte = self.skinMatte
               , let originalPhoto = self.originalPhoto
         else {
             return nil
         }
-        
-        let visionRequest = VNDetectFaceLandmarksRequest { (request, error) in
-            guard let results = request.results as? [VNFaceObservation] else {
-                return
-            }
-            
-            // デバッグで眉のランドマークを描画するための処理
-//            let photoCg = self.context.createCGImage(photoImage, from: photoImage.extent)!
-//            let photoRect = CGRect(x: 0, y: 0, width: photoCg.width, height: photoCg.height)
-//            let cgContext = CGContext(
-//                data: nil,
-//                width: photoCg.width,
-//                height: photoCg.height,
-//                bitsPerComponent: photoCg.bitsPerComponent,
-//                bytesPerRow: photoCg.bytesPerRow,
-//                space: photoCg.colorSpace!,
-//                bitmapInfo: photoCg.bitmapInfo.rawValue
-//            )
-//            cgContext?.draw(photoCg, in: photoRect)
-                
-            let cgSize = photoImage.extent.size
-            print(cgSize)
-            
-            for observation in results {
-                self.rightEyebowPoints = observation.landmarks?.rightEyebrow?.pointsInImage(imageSize: cgSize)
-                self.leftEyebowPoints = observation.landmarks?.leftEyebrow?.pointsInImage(imageSize: cgSize)
-                
-                print("rightEyebrow:")
-                print(self.rightEyebowPoints)
-                print("leftEyebrow:")
-                print(self.leftEyebowPoints)
-                
-                // デバッグで眉のランドマークを描画するための処理
-//                cgContext?.setStrokeColor(UIColor.green.cgColor)
-//                cgContext?.addLines(between: self.rightEyebowPoints!)
-//                cgContext?.addLines(between: self.leftEyebowPoints!)
-//                cgContext?.strokePath()
-//
-//                let newImage = cgContext?.makeImage()
-//                self.image = UIImage(cgImage: newImage!)
-            }
-            
-        }
-            
-        let handler = VNImageRequestHandler(ciImage: originalPhoto, options: [:])
-        try? handler.perform([visionRequest])
-        
-        guard let rightEyebowPoints = self.rightEyebowPoints, let leftEyebowPoints = self.leftEyebowPoints
+
+        getFaceData()
+
+        guard let baseRightEyebowPoints = rightEyebowPoints, let baseLeftEyebowPoints = leftEyebowPoints
         else {
             return nil
         }
         
+        let roll = CGFloat(-faceRoll)
+        let expandedRightEyebowPoints
+            = baseRightEyebowPoints.expandEyebow(expantionRate, aspect: eyebowAspect, angle: roll)
+        let expandedLeftEyebowPoints
+            = baseLeftEyebowPoints.expandEyebow(expantionRate, aspect: eyebowAspect, angle: roll)
+//        print("new rightEyebowPoints")
+//        print(expandedRightEyebowPoints)
+//        print("new leftEyebowPoints")
+//        print(expandedLeftEyebowPoints)
+        
+        var connectedEybowPoints
+            = connectEyebow(rightEyebow: baseRightEyebowPoints, leftEyebow: baseLeftEyebowPoints)
+        
+        var connectedExtended
+            = connectEyebow(rightEyebow: expandedRightEyebowPoints, leftEyebow: expandedLeftEyebowPoints)
+        
+        // 左眉と右眉の領域の交差をチェックし、交差している場合は2点を交点にまとめる
+        let lowerIntersection = calculateIntersection(
+            (connectedExtended[7], connectedExtended[8]),
+            (connectedExtended[9], connectedExtended[10]))
+        if let intersection = lowerIntersection {
+            connectedExtended.remove(at: 9)
+            connectedExtended[8] = intersection
+        }
+        let upperIntersection = calculateIntersection(
+            (connectedExtended[1], connectedExtended[2]),
+            (connectedExtended[3], connectedExtended[4]))
+        if let intersection = upperIntersection {
+            connectedExtended.remove(at: 3)
+            connectedExtended[2] = intersection
+        }
+
         let eyebowFIlter = CIGetEyebowMatte()
-        eyebowFIlter.inputImage = hairImage
-        eyebowFIlter.backgroundImage = skinImage
-        eyebowFIlter.rightEyebowPoints = rightEyebowPoints
-        eyebowFIlter.leftEyebowPoints = leftEyebowPoints
-        //        return eyebowFIlter.outputImage!
+        eyebowFIlter.inputImage = hairMatte
+        eyebowFIlter.backgroundImage = skinMatte
+        eyebowFIlter.eyebowPoints = connectedExtended
 
         // 最終出力はsRGB色空間でないと色がおかしくなるが、色計算はリニア色空間でないとおかしくなる。
         // CIImage単位で色空間を制御する方法がよくわからないので、
@@ -269,11 +374,190 @@ class ColorChanger: ObservableObject {
         let eyebowMatte = eyebowFIlter.outputImage!
         let cgImage = linearContext.createCGImage(eyebowMatte, from: eyebowMatte.extent)
         let linearEyebowMatte = CIImage(cgImage: cgImage!)
+        
+        // 領域チェック用 START
+        if checkSegmentation == true {
+            let pointRadius: CGFloat = 10
+            
+            let invertFilter = CIFilter.colorInvert()
+            invertFilter.inputImage = hairMatte
+            let invertHair = invertFilter.outputImage!
+            let cgHair = linearContext.createCGImage(invertHair, from: invertHair.extent)
+            invertFilter.inputImage = skinMatte
+            let invertSkin = invertFilter.outputImage!
+            let cgSkin = linearContext.createCGImage(invertSkin, from: invertSkin.extent)
+
+            let clampFilter = CIFilter.colorClamp()
+            clampFilter.maxComponents = CIVector(x: 1, y: 0, z: 0, w: 1)
+            clampFilter.inputImage = invertSkin
+            let redSkin = clampFilter.outputImage!
+            clampFilter.maxComponents = CIVector(x: 0, y: 1, z: 1, w: 1)
+            clampFilter.inputImage = linearEyebowMatte
+            let greenEyebow = clampFilter.outputImage!
+            
+            let addFilter = CIFilter.additionCompositing()
+            addFilter.inputImage = redSkin
+            addFilter.backgroundImage = greenEyebow
+            let compareImage = addFilter.outputImage!
+            let cgImage2 = linearContext.createCGImage(compareImage, from: compareImage.extent)
+            let linearCompare = CIImage(cgImage: cgImage2!)
+            
+            let photoRect = CGRect(x: 0, y: 0, width: cgImage2!.width, height: cgImage2!.height)
+            let cgContext = CGContext(
+                data: nil,
+                width: cgImage2!.width,
+                height: cgImage2!.height,
+                bitsPerComponent: cgImage2!.bitsPerComponent,
+                bytesPerRow: cgImage2!.bytesPerRow,
+                space: cgImage2!.colorSpace!,
+                bitmapInfo: cgImage2!.bitmapInfo.rawValue
+            )
+            cgContext?.draw(cgImage2!, in: photoRect)
+            cgContext?.setLineWidth(4.0)
+            cgContext?.setStrokeColor(UIColor.green.cgColor)
+            cgContext?.addLines(between: baseRightEyebowPoints)
+            cgContext?.addLines(between: baseLeftEyebowPoints)
+            cgContext?.strokePath()
+            
+            cgContext?.setStrokeColor(UIColor.cyan.cgColor)
+            cgContext?.addLines(between: expandedRightEyebowPoints)
+            cgContext?.addLines(between: expandedLeftEyebowPoints)
+            cgContext?.strokePath()
+            cgContext?.setStrokeColor(UIColor.magenta.cgColor)
+            cgContext?.addLines(between: connectedExtended)
+            cgContext?.strokePath()
+            
+            let rightCenter = baseRightEyebowPoints.getEyebowCenter()
+            let leftCenter = baseLeftEyebowPoints.getEyebowCenter()
+            cgContext?.setFillColor(UIColor.yellow.cgColor)
+            let rightRect = CGRect(origin: rightCenter, radius: pointRadius)
+            let leftRect = CGRect(origin: leftCenter, radius: pointRadius)
+            cgContext?.fillEllipse(in: rightRect)
+            cgContext?.fillEllipse(in: leftRect)
+            
+            cgContext?.setStrokeColor(UIColor.magenta.cgColor)
+            cgContext?.addLines(between: connectedEybowPoints)
+            cgContext?.strokePath()
+
+            let newImage = cgContext?.makeImage()
+            self.image = UIImage(cgImage: newImage!)
+        }
+        // 領域チェック用 END
+
+//        saveCIImage(linearEyebowMatte)
+//        saveCIImage(invertSkin)
+//        saveCIImage(invertHair)
 
         return linearEyebowMatte
     }
     
+    func getFaceData() {
+        guard let photoImage = self.photoImage
+              , let originalPhoto = self.originalPhoto
+        else {
+            return
+        }
+        
+        // CIDetectorで顔の角度(roll)を取得する(Visionは45°単位でしか取得できない)
+        let features = detector!.features(in: originalPhoto, options: [CIDetectorEyeBlink : true])
+        print("CIFaceFeature count: ", terminator: "")
+        print(features.count)
+
+        if features.count > 0 {
+            (features as? [CIFaceFeature])?.forEach {
+                print("bounds:")
+                print($0.bounds) // yの位置が上下判定しているので注意!!
+                print("hasFaceAngle: ", terminator: "")
+                print($0.hasFaceAngle)
+                print("faceAngle: ", terminator: "")
+                self.faceRoll = $0.faceAngle * .pi / 180
+                print(faceRoll)
+                print("leftEyeClosed: ", terminator: "")
+                print($0.leftEyeClosed)
+                print("rightEyeClosed: ", terminator: "")
+                print($0.rightEyeClosed)
+            }
+        } else {
+            self.error.setError(.ciDetectorNoHuman)
+        }
+        
+        // 眉のランドマークを取得する
+        let visionRequest = VNDetectFaceLandmarksRequest { (request, error) in
+            guard let results = request.results as? [VNFaceObservation] else {
+                self.error.setError(.visionFailure)
+                return
+            }
+            
+            let matteSize = photoImage.extent.size
+            print(matteSize)
+            
+            if results.count == 0 {
+                self.error.setError(.visionFailureNoHuman)
+            }
+            
+            for observation in results {
+                self.rightEyebowPoints = observation.landmarks?.rightEyebrow?.pointsInImage(imageSize: matteSize)
+                self.leftEyebowPoints = observation.landmarks?.leftEyebrow?.pointsInImage(imageSize: matteSize)
+                
+//                print("rightEyebrow:")
+//                print(self.rightEyebowPoints)
+//                print("leftEyebrow:")
+//                print(self.leftEyebowPoints)
+                
+//                print("VNFaceObservation angle")
+//                print(observation.roll)
+//                print(observation.yaw)
+//                print(observation.pitch)
+            }
+            
+        }
+            
+        let handler = VNImageRequestHandler(ciImage: originalPhoto, options: [:])
+        try? handler.perform([visionRequest])
+    }
+    
+    func connectEyebow(rightEyebow: [CGPoint], leftEyebow: [CGPoint]) -> [CGPoint] {
+        guard rightEyebow.count == 6, leftEyebow.count == 6 else {return []}
+        var connectedEybowPoints: [CGPoint] = []
+        connectedEybowPoints.append(contentsOf: rightEyebow[0...2])
+        connectedEybowPoints.append(contentsOf: leftEyebow[0...2].reversed())
+        connectedEybowPoints.append(contentsOf: leftEyebow[3...5].reversed())
+        connectedEybowPoints.append(contentsOf: rightEyebow[3...5])
+        
+        return connectedEybowPoints
+    }
+
+    func calculateIntersection(_ lineA: (start: CGPoint, end: CGPoint), _ lineB: (start: CGPoint, end: CGPoint)) -> CGPoint? {
+        let pA = lineA.start
+        let pB = lineA.end
+        let pC = lineB.start
+        let pD = lineB.end
+        
+        let sMolecule =     (pC.x - pA.x) * (pD.y - pC.y) - (pC.y - pA.y) * (pD.x - pC.x)
+        let sDenominator =  (pB.x - pA.x) * (pD.y - pC.y) - (pB.y - pA.y) * (pD.x - pC.x)
+        let tMolecule =     (pA.x - pC.x) * (pB.y - pA.y) - (pA.y - pC.y) * (pB.x - pA.x)
+        let tDenominator =  (pD.x - pC.x) * (pB.y - pA.y) - (pD.y - pC.y) * (pB.x - pA.x)
+        
+        let s = sMolecule / sDenominator
+        let t = tMolecule / tDenominator
+        
+        if 0...1 ~= s && 0...1 ~= t {
+            let intersection = pA + (s * (pB - pA))
+            return intersection
+        } else {
+            return nil
+        }
+    }
+    
+    func saveCIImage(_ image: CIImage) {
+        let cgImage = linearContext.createCGImage(image, from: image.extent)
+        let uiImage = UIImage(cgImage: cgImage!)
+        UIImageWriteToSavedPhotosAlbum(uiImage, self, nil, nil)
+    }
+    
     func clear() {
+        eyebowColorist.clear()
+        eyebowColorist2.clear()
         image = nil
         originalPhoto = nil
         photoImage = nil
@@ -282,5 +566,10 @@ class ColorChanger: ObservableObject {
         eyebowMatte = nil
         rightEyebowPoints = nil
         leftEyebowPoints = nil
+        faceRoll = 0
+    }
+    
+    func removeError() -> String {
+        return error.removeError()
     }
 }

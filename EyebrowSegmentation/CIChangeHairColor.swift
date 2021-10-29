@@ -7,27 +7,7 @@
 //
 
 import CoreImage.CIFilterBuiltins
-
-extension CIImage {
-    func getColorAtPoint (point: CGPoint = CGPoint(x: 0, y: 0)) -> CIColor {
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        let context = CIContext(options: [.workingColorSpace: kCFNull])
-        context.render(self, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: point.x, y: point.y, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
-        
-        let redInteger = Int(bitmap[0].description) ?? 0
-        let redc = CGFloat(redInteger)/255
-        let greenInteger = Int(bitmap[1].description) ?? 0
-        let greenc = CGFloat(greenInteger)/255
-        let blueInteger = Int(bitmap[2].description) ?? 0
-        let bluec = CGFloat(blueInteger)/255
-        let alphaInteger = Int(bitmap[3].description) ?? 0
-        let alphac = CGFloat(alphaInteger)/255
-        
-        let color = CIColor(red: redc, green: greenc, blue: bluec, alpha: alphac)
-        
-        return color
-    }
-}
+import CoreImage
 
 class CILightnessInfo: CIFilter {
     let batchSize = 500
@@ -56,7 +36,7 @@ class CILightnessInfo: CIFilter {
     }
 }
 
-class CIGetOnesideEyebowMatte: CIFilter {
+class CIGetEyebowMatte: CIFilter {
     // hairMatte
     var inputImage: CIImage?
     // skinMatte
@@ -66,58 +46,184 @@ class CIGetOnesideEyebowMatte: CIFilter {
     override var outputImage: CIImage? {
         guard let inputImage = inputImage
               , let backgroundImage = backgroundImage
-              , eyebowPoints.count >= 6
+              , eyebowPoints.count >= 10
+        else { return nil }
+
+        switch eyebowPoints.count {
+        case 12:
+            let filter = CIGetEyebowMatteWith12p()
+            filter.inputImage = inputImage
+            filter.backgroundImage = backgroundImage
+            filter.eyebowPoints = eyebowPoints
+            return filter.outputImage!
+        case 11:
+            let filter = CIGetEyebowMatteWith11p()
+            filter.inputImage = inputImage
+            filter.backgroundImage = backgroundImage
+            filter.eyebowPoints = eyebowPoints
+            return filter.outputImage!
+        case 10:
+            let filter = CIGetEyebowMatteWith10p()
+            filter.inputImage = inputImage
+            filter.backgroundImage = backgroundImage
+            filter.eyebowPoints = eyebowPoints
+            return filter.outputImage!
+        default:
+            return nil
+        }
+    }
+}
+
+class CIGetEyebowMatteWith12p: CIFilter {
+    // hairMatte
+    var inputImage: CIImage?
+    // skinMatte
+    var backgroundImage: CIImage?
+    var eyebowPoints = Array<CGPoint>()
+    
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage
+              , let backgroundImage = backgroundImage
+              , eyebowPoints.count >= 12
         else { return nil }
         
-        print(eyebowPoints)
         let p1 = eyebowPoints[0]
         let p2 = eyebowPoints[1]
         let p3 = eyebowPoints[2]
         let p4 = eyebowPoints[3]
         let p5 = eyebowPoints[4]
         let p6 = eyebowPoints[5]
-        
+        let p7 = eyebowPoints[6]
+        let p8 = eyebowPoints[7]
+        let p9 = eyebowPoints[8]
+        let p10 = eyebowPoints[9]
+        let p11 = eyebowPoints[10]
+        let p12 = eyebowPoints[11]
+
         let url = Bundle.main.url(forResource: "default", withExtension: "metallib")!
         let data = try! Data(contentsOf: url)
-        let arguments = [inputImage, backgroundImage, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y, p5.x, p5.y, p6.x, p6.y] as [Any]
+        let arguments = [inputImage, backgroundImage,
+                         p1.x, p1.y,
+                         p2.x, p2.y,
+                         p3.x, p3.y,
+                         p4.x, p4.y,
+                         p5.x, p5.y,
+                         p6.x, p6.y,
+                         p7.x, p7.y,
+                         p8.x, p8.y,
+                         p9.x, p9.y,
+                         p10.x, p10.y,
+                         p11.x, p11.y,
+                         p12.x, p12.y
+        ] as [Any]
         let kernel = try! CIKernel(functionName: "getEyebowMatte", fromMetalLibraryData: data)
         let outputImage = kernel.apply(extent: inputImage.extent,
                                        roiCallback: { index, rect in
-                                        return inputImage.extent
+                                                        return inputImage.extent
                                        },
                                        arguments: arguments)
 
         return outputImage!
     }
 }
-
-class CIGetEyebowMatte: CIFilter {
+    
+class CIGetEyebowMatteWith11p: CIFilter {
     // hairMatte
     var inputImage: CIImage?
     // skinMatte
     var backgroundImage: CIImage?
-    var rightEyebowPoints = Array<CGPoint>()
-    var leftEyebowPoints = Array<CGPoint>()
-
+    var eyebowPoints = Array<CGPoint>()
+    
     override var outputImage: CIImage? {
         guard let inputImage = inputImage
-              , let backgroundImage = backgroundImage
-              , rightEyebowPoints.count >= 6
-              , leftEyebowPoints.count >= 6
+                , let backgroundImage = backgroundImage
+                , eyebowPoints.count >= 11
         else { return nil }
         
-        let addFilter = CIFilter.additionCompositing()
+        let p1 = eyebowPoints[0]
+        let p2 = eyebowPoints[1]
+        let p3 = eyebowPoints[2]
+        let p4 = eyebowPoints[3]
+        let p5 = eyebowPoints[4]
+        let p6 = eyebowPoints[5]
+        let p7 = eyebowPoints[6]
+        let p8 = eyebowPoints[7]
+        let p9 = eyebowPoints[8]
+        let p10 = eyebowPoints[9]
+        let p11 = eyebowPoints[10]
         
-        let eyebowFilter = CIGetOnesideEyebowMatte()
-        eyebowFilter.inputImage = inputImage
-        eyebowFilter.backgroundImage = backgroundImage
-        eyebowFilter.eyebowPoints = rightEyebowPoints
-        addFilter.inputImage = eyebowFilter.outputImage!
+        let url = Bundle.main.url(forResource: "default", withExtension: "metallib")!
+        let data = try! Data(contentsOf: url)
+        let arguments = [inputImage, backgroundImage,
+                         p1.x, p1.y,
+                         p2.x, p2.y,
+                         p3.x, p3.y,
+                         p4.x, p4.y,
+                         p5.x, p5.y,
+                         p6.x, p6.y,
+                         p7.x, p7.y,
+                         p8.x, p8.y,
+                         p9.x, p9.y,
+                         p10.x, p10.y,
+                         p11.x, p11.y
+        ] as [Any]
+        let kernel = try! CIKernel(functionName: "getEyebowMatte11P", fromMetalLibraryData: data)
+        let outputImage = kernel.apply(extent: inputImage.extent,
+                                       roiCallback: { index, rect in
+                                                        return inputImage.extent
+                                                    },
+                                       arguments: arguments)
         
-        eyebowFilter.eyebowPoints = leftEyebowPoints
-        addFilter.backgroundImage = eyebowFilter.outputImage!
+        return outputImage!
+    }
+}
 
-        return addFilter.outputImage!
+class CIGetEyebowMatteWith10p: CIFilter {
+    // hairMatte
+    var inputImage: CIImage?
+    // skinMatte
+    var backgroundImage: CIImage?
+    var eyebowPoints = Array<CGPoint>()
+    
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage
+                , let backgroundImage = backgroundImage
+                , eyebowPoints.count >= 10
+        else { return nil }
+        
+        let p1 = eyebowPoints[0]
+        let p2 = eyebowPoints[1]
+        let p3 = eyebowPoints[2]
+        let p4 = eyebowPoints[3]
+        let p5 = eyebowPoints[4]
+        let p6 = eyebowPoints[5]
+        let p7 = eyebowPoints[6]
+        let p8 = eyebowPoints[7]
+        let p9 = eyebowPoints[8]
+        let p10 = eyebowPoints[9]
+        
+        let url = Bundle.main.url(forResource: "default", withExtension: "metallib")!
+        let data = try! Data(contentsOf: url)
+        let arguments = [inputImage, backgroundImage,
+                         p1.x, p1.y,
+                         p2.x, p2.y,
+                         p3.x, p3.y,
+                         p4.x, p4.y,
+                         p5.x, p5.y,
+                         p6.x, p6.y,
+                         p7.x, p7.y,
+                         p8.x, p8.y,
+                         p9.x, p9.y,
+                         p10.x, p10.y
+        ] as [Any]
+        let kernel = try! CIKernel(functionName: "getEyebowMatte10P", fromMetalLibraryData: data)
+        let outputImage = kernel.apply(extent: inputImage.extent,
+                                       roiCallback: { index, rect in
+                                                        return inputImage.extent
+                                                    },
+                                       arguments: arguments)
+        
+        return outputImage!
     }
 }
 
@@ -207,5 +313,81 @@ class CIIkaHairGradient: CIFilter {
             .cropped(to: CGRect(x: 0, y: 0, width: 1000, height: 480))
 
         return compositeFilter.outputImage!
+    }
+}
+
+class CIShiftAndStack: CIFilter {
+    var inputImage: CIImage?
+    var matte: CIImage?
+    var startAngle: CGFloat = 0
+    var radius: CGFloat = 0
+    var times: Int?
+
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage, let matte = matte, let times = times else { return nil }
+        
+        let shiftBase = CGPoint(x: radius, y: 0).rotate(startAngle)
+        var shift = CGAffineTransform(shiftBase)
+        var stackedImage = inputImage
+        var shiftImage: CIImage?
+        let compositeFilter = CIFilter.sourceOverCompositing()
+        
+        for i in 0..<times {
+            let angle:Double = .pi * Double(360 / times) / Double(180) * Double(i)
+            print(angle)
+            shift = CGAffineTransform( shiftBase.rotate(angle + startAngle) )
+            shiftImage = inputImage.transformed(by: shift)
+            compositeFilter.backgroundImage = stackedImage
+            compositeFilter.inputImage = shiftImage
+            stackedImage = compositeFilter.outputImage!
+        }
+        
+        return stackedImage
+    }
+}
+
+class CIThickenMatte: CIFilter {
+    var inputImage: CIImage?
+
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage else { return nil }
+        
+        let polyFilter = CIFilter.colorPolynomial()
+        let colorVector = CIVector(x: 0, y: 3, z: 0, w: 0)
+        polyFilter.inputImage = inputImage
+        polyFilter.redCoefficients = colorVector
+        polyFilter.greenCoefficients = colorVector
+        polyFilter.blueCoefficients = colorVector
+
+        let bloomFilter = CIFilter.bloom()
+        bloomFilter.inputImage = polyFilter.outputImage!
+        bloomFilter.radius = 5
+        bloomFilter.intensity = 0.75
+
+        // clampでコンポーネントの範囲を0〜1に絞らないとオーバーフローしたピクセルの処理がおかしくなる
+        let clampFilter = CIFilter.colorClamp()
+        clampFilter.inputImage = bloomFilter.outputImage!
+        
+        return clampFilter.outputImage!
+    }
+}
+
+
+class CISimpleSubtraction: CIFilter {
+    var inputImage: CIImage?
+    var backgroundImage: CIImage?
+
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage else { return nil }
+        guard let backgroundImage = backgroundImage else { return inputImage }
+        
+        let url = Bundle.main.url(forResource: "default", withExtension: "metallib")!
+
+        let data = try! Data(contentsOf: url)
+        let arguments = [inputImage, backgroundImage] as [Any]
+        let kernel = try! CIColorKernel(functionName: "simpleSubtraction", fromMetalLibraryData: data)
+        let outputImage = kernel.apply(extent: inputImage.extent, arguments: arguments)
+
+        return outputImage!
     }
 }
