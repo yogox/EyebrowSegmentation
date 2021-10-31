@@ -52,9 +52,7 @@ extension Array where Element == CGPoint {
 }
 
 class FacePartColorist {
-    // CIContextをインスタンス毎に持つと重くなるのでColorChanger側で持つ
-//    private let linearContext = CIContext(options: [.workingColorSpace: kCFNull])
-
+    var matte: CIImage?
     var partImage: CIImage?
     var coloredPart: CIImage?
     var minLightness: CGFloat?
@@ -67,6 +65,8 @@ class FacePartColorist {
     var printRange = true
 
     func setupPhoto(_ photo: CIImage, _ matte: CIImage) {
+        self.matte = matte
+        
         // マット画像で写真を切り抜いて、グレースケール変換
         let cutoutFilter = CICutoutSegmentGray()
         cutoutFilter.inputImage = photo
@@ -145,6 +145,7 @@ class FacePartColorist {
     }
 
     func clear() {
+        matte = nil
         partImage = nil
         coloredPart = nil
         minLightness = nil
@@ -158,13 +159,23 @@ class FacePartColorist {
 }
 
 class ColorChanger: ObservableObject {
+    enum FacePart: Int, CaseIterable {
+        // 髪の毛
+        case hair = 0
+        // 眉毛
+        case eyebow
+        // 厚い眉毛（とりあえずは別々に管理しておく）
+        case thickEyebow
+    }
+    
     private let linearContext = CIContext(options: [.workingColorSpace: kCFNull])
     private let sRGBContext = CIContext(options: nil)
     private let detector: CIDetector?
-    // 普通の眉用
-    private let eyebowColorist = FacePartColorist()
-    // 眉を厚くする用
-    private let eyebowColorist2 = FacePartColorist()
+    private let facePartColorists: [FacePart: FacePartColorist] = [
+        .hair: FacePartColorist(),
+        .eyebow: FacePartColorist(),
+        .thickEyebow: FacePartColorist()
+    ]
 
     @Published var image: UIImage?
     var photoImage: CIImage?
@@ -208,37 +219,35 @@ class ColorChanger: ObservableObject {
         // photoとmatteから眉のmatteを作る
         self.eyebowMatte = getEyebowMatte()
         
+        setupAndCompute(part: .hair, photo: self.photoImage!, matte: self.hairMatte!)
+        
         if let photoImage = self.photoImage, let eyebowMatte = self.eyebowMatte {
-            self.eyebowColorist.setupPhoto(photoImage, eyebowMatte)
-            if let partImage = self.eyebowColorist.partImage {
-                // CGContextを複数持ちたくないのでこちらで明度を計算
-                let lightness = computeLightness(partImage)
-                eyebowColorist.setupLightness(lightness)
-                
-                if self.thickenEyebow == true {
-                    // 眉画像を元に厚い眉を作る
-                    let filter = CIShiftAndStack()
-                    filter.inputImage = partImage
-                    filter.matte = eyebowMatte
-                    filter.startAngle = CGFloat(faceRoll)
-                    filter.times = times
-                    filter.radius = shiftRadius
-                    
-                    // matteも厚くする
-                    let matteFilter = CIThickenMatte()
-                    matteFilter.inputImage = eyebowMatte
-                    
-                    self.eyebowColorist2.setupPhoto(filter.outputImage!, matteFilter.outputImage!)
-                    
-                    if let partImage2 = self.eyebowColorist2.partImage {
-                        let lightness2 = computeLightness(partImage2)
-                        eyebowColorist2.setupLightness(lightness2)
-                    }
-                }
+            setupAndCompute(part: .eyebow, photo: photoImage, matte: eyebowMatte)
+            if self.thickenEyebow == true, let partImage = facePartColorists[.eyebow]?.partImage {
+                // 眉画像を元に厚い眉を作る
+                let filter = CIShiftAndStack()
+                filter.inputImage = partImage
+                filter.matte = eyebowMatte
+                filter.startAngle = CGFloat(faceRoll)
+                filter.times = times
+                filter.radius = shiftRadius
+                // 眉matteも厚くする
+                let matteFilter = CIThickenMatte()
+                matteFilter.inputImage = eyebowMatte
+
+                setupAndCompute(part: .thickEyebow, photo: filter.outputImage!, matte: matteFilter.outputImage!)
             }
         }
-        
-
+    }
+    
+    func setupAndCompute(part: FacePart, photo: CIImage, matte: CIImage) {
+        if let colorist = facePartColorists[part] {
+            colorist.setupPhoto(photo, matte)
+            if let partImage = colorist.partImage {
+                let lightness = computeLightness(partImage)
+                colorist.setupLightness(lightness)
+            }
+        }
     }
     
     func computeLightness(_ inputImage: CIImage) -> (minLightness: CGFloat, modeLightness: CGFloat, maxLightness: CGFloat) {
@@ -253,30 +262,51 @@ class ColorChanger: ObservableObject {
     }
     
     func setupColor( _ colorChart: (minColor: CIColor, modeColor: CIColor, maxColor: CIColor) ) {
-        self.eyebowColorist.setupColor(colorChart)
-        self.eyebowColorist2.setupColor(colorChart)
+        for part in FacePart.allCases {
+            facePartColorists[part]?.setupColor(colorChart)
+        }
     }
     
     func makeImage() {
         guard checkSegmentation == false else { return }
         guard checkEyebowPart == false
         else {
-            let eyebowImage:CIImage?
-            if thickenEyebow  == true {
-                eyebowImage = self.eyebowColorist2.coloredPart
-            } else {
-                eyebowImage = self.eyebowColorist.coloredPart
-            }
+//            if let matte = self.eyebowColorist.matte, let image = self.eyebowColorist.partImage {
+            if let matte = facePartColorists[.eyebow]?.matte, let image = facePartColorists[.eyebow]?.coloredPart {
+                // 背景用フィルター
+                let gradientFilter = CIFilter.linearGradient()
+                gradientFilter.point0 = CGPoint(x: 0, y: 0)
+                gradientFilter.color0 = CIColor.magenta
+                gradientFilter.point1 = CGPoint(x: image.extent.width, y: image.extent.height)
+                gradientFilter.color1 = CIColor.green
 
-            if let ciImage = eyebowImage {
                 // 合成用フィルターを定義
                 let compositeFilter = CIFilter.sourceOverCompositing()
-                let bgImage = CIImage(color: .clear).cropped(to: ciImage.extent)
-                compositeFilter.inputImage = ciImage
+                let maskFIlter = CIFilter.maskToAlpha()
+                maskFIlter.inputImage = matte
+                let bgImage = gradientFilter.outputImage!.cropped(to: image.extent)
                 compositeFilter.backgroundImage = bgImage
-                let image = compositeFilter.outputImage!
-
-                let cgImage = sRGBContext.createCGImage(image, from: ciImage.extent)
+                compositeFilter.inputImage = maskFIlter.outputImage!
+                
+                let lowerTrans = CGAffineTransform(CGPoint(x: 0, y: -150))
+                compositeFilter.backgroundImage = compositeFilter.outputImage!
+                compositeFilter.inputImage = image.transformed(by: lowerTrans)
+                
+                if thickenEyebow  == true,
+                   let thickMatte = facePartColorists[.thickEyebow]?.matte,
+//                   let thickeImage = self.eyebowColorist2.partImage {
+                    let thickeImage = facePartColorists[.thickEyebow]?.coloredPart {
+                    maskFIlter.inputImage = thickMatte
+                    var lowerTrans = CGAffineTransform(CGPoint(x: 0, y: -300))
+                    compositeFilter.backgroundImage = compositeFilter.outputImage!
+                    compositeFilter.inputImage = maskFIlter.outputImage!.transformed(by: lowerTrans)
+                    
+                    lowerTrans = CGAffineTransform(CGPoint(x: 0, y: -450))
+                    compositeFilter.backgroundImage = compositeFilter.outputImage!
+                    compositeFilter.inputImage = thickeImage.transformed(by: lowerTrans)
+                }
+                let ciImage = compositeFilter.outputImage!
+                let cgImage = sRGBContext.createCGImage(ciImage, from: ciImage.extent)
                 self.image = UIImage(cgImage: cgImage!)
             }
             return
@@ -290,9 +320,9 @@ class ColorChanger: ObservableObject {
         
         let eyebowImage:CIImage?
         if thickenEyebow  == true {
-            eyebowImage = self.eyebowColorist2.coloredPart
+            eyebowImage = facePartColorists[.thickEyebow]?.coloredPart
         } else {
-            eyebowImage = self.eyebowColorist.coloredPart
+            eyebowImage = facePartColorists[.eyebow]?.coloredPart
         }
         
         guard let eyebowImage = eyebowImage
@@ -304,13 +334,20 @@ class ColorChanger: ObservableObject {
         
         // 合成用フィルターを定義
         let compositeFilter = CIFilter.sourceOverCompositing()
+        guard let hairImage = facePartColorists[.hair]?.coloredPart
+        else {
+            let cgImage = linearContext.createCGImage(photoImage, from: photoImage.extent)
+            self.image = UIImage(cgImage: cgImage!)
+            return
+        }
+        compositeFilter.inputImage = hairImage
+        compositeFilter.backgroundImage = photoImage
+        compositeFilter.backgroundImage = compositeFilter.outputImage!
         // 色変更した眉を元写真と合成
         compositeFilter.inputImage = eyebowImage
-        compositeFilter.backgroundImage = photoImage
         
         let newImage = compositeFilter.outputImage!
         // Imageクラスで描画されるようにCGImage経由でUIImageに変換する必要がある
-//        let cgImage = linearContext.createCGImage(newImage, from: newImage.extent)
         let cgImage = sRGBContext.createCGImage(newImage, from: newImage.extent)
         self.image = UIImage(cgImage: cgImage!)
     }
@@ -556,8 +593,9 @@ class ColorChanger: ObservableObject {
     }
     
     func clear() {
-        eyebowColorist.clear()
-        eyebowColorist2.clear()
+        for part in FacePart.allCases {
+            facePartColorists[part]?.clear()
+        }
         image = nil
         originalPhoto = nil
         photoImage = nil
