@@ -15,7 +15,7 @@ class MyError {
         case segmentaionFailure = "No object with segmentation."
         case ciDetectorFailure = "Cound not get face angle."
         case ciDetectorNoHuman = "There is no human.(CIDetector)"
-        case visionFailure = "Cound not get eyebow data."
+        case visionFailure = "Cound not get eyebrow data."
         case visionFailureNoHuman = "There is no human.(Vision)"
     }
     

@@ -11,7 +11,7 @@ import CoreImage
 import Vision
 
 extension Array where Element == CGPoint {
-    func getEyebowCenter() -> CGPoint {
+    func getEyebrowCenter() -> CGPoint {
         //        let pointsSum = reduce(CGPoint.zero) {
         //            return $0 + $1
         //        }
@@ -25,15 +25,15 @@ extension Array where Element == CGPoint {
         return centerPoint
     }
     
-    func expandEyebow(_ rate: CGFloat, aspect: CGFloat = 1.0, angle: CGFloat = 0.0) -> [CGPoint] {
+    func expandEyebrow(_ rate: CGFloat, aspect: CGFloat = 1.0, angle: CGFloat = 0.0) -> [CGPoint] {
         guard count == 6 else { return [CGPoint.zero] }
-        let centerPoint = getEyebowCenter()
+        let centerPoint = getEyebrowCenter()
         let newPoints = rotateAndExpantFrom(centerPoint, rate: rate, aspect: aspect, angle: angle)
         
         return newPoints
     }
     
-    func getConnectedEyebowCenter() -> CGPoint {
+    func getConnectedEyebrowCenter() -> CGPoint {
         var horizontalElemetns: [CGPoint] = []
         horizontalElemetns.append(contentsOf: self[2...3])
         horizontalElemetns.append(contentsOf: self[8...9])
@@ -163,9 +163,9 @@ class ColorChanger: ObservableObject {
         // 髪の毛
         case hair = 0
         // 眉毛
-        case eyebow
+        case eyebrows
         // 厚い眉毛（とりあえずは別々に管理しておく）
-        case thickEyebow
+        case thickEyebrows
     }
     
     private let linearContext = CIContext(options: [.workingColorSpace: kCFNull])
@@ -173,8 +173,8 @@ class ColorChanger: ObservableObject {
     private let detector: CIDetector?
     private let facePartColorists: [FacePart: FacePartColorist] = [
         .hair: FacePartColorist(),
-        .eyebow: FacePartColorist(),
-        .thickEyebow: FacePartColorist()
+        .eyebrows: FacePartColorist(),
+        .thickEyebrows: FacePartColorist()
     ]
 
     @Published var image: UIImage?
@@ -183,26 +183,26 @@ class ColorChanger: ObservableObject {
     var hairMatte: CIImage?
     var skinMatte: CIImage?
     var portraitMatte: CIImage?
-    var eyebowMatte: CIImage?
-    var rightEyebowPoints: [CGPoint]?
-    var leftEyebowPoints: [CGPoint]?
+    var eyebrowMatte: CIImage?
+    var rightEyebrowPoints: [CGPoint]?
+    var leftEyebrowPoints: [CGPoint]?
     var faceRoll: Float = 0
     var expantionRate: CGFloat = 0.5
-    let eyebowAspect: CGFloat = 2.0
+    let eyebrowAspect: CGFloat = 2.0
     var printRange = true
-    var thickenEyebow = true
+    var thickenEyebrow = true
     let blurRadius:Float = 6
     let shiftRadius:CGFloat = 5
     let times = 4
     var checkSegmentation = false
-    var checkEyebowPart = false
+    var checkEyebrowPart = false
 
     private var error = MyError()
 
     init() {
         detector = CIDetector(ofType: CIDetectorTypeFace, context: linearContext, options: nil)
-        if thickenEyebow == true {
-            print("thickenEyebow")
+        if thickenEyebrow == true {
+            print("thickenEyebrow")
         }
     }
 
@@ -219,28 +219,28 @@ class ColorChanger: ObservableObject {
         self.skinMatte = skinMatte
         self.portraitMatte = portraitMatte
         // photoとmatteから眉のmatteを作る
-        self.eyebowMatte = getEyebowMatte()
+        self.eyebrowMatte = getEyebrowMatte()
         
         setupAndCompute(part: .hair, photo: self.photoImage!, matte: self.hairMatte!)
         
-        if let photoImage = self.photoImage, let eyebowMatte = self.eyebowMatte {
-            setupAndCompute(part: .eyebow, photo: photoImage, matte: eyebowMatte)
-            if self.thickenEyebow == true,
-                let partImage = facePartColorists[.eyebow]?.partImage,
+        if let photoImage = self.photoImage, let eyebrowMatte = self.eyebrowMatte {
+            setupAndCompute(part: .eyebrows, photo: photoImage, matte: eyebrowMatte)
+            if self.thickenEyebrow == true,
+                let partImage = facePartColorists[.eyebrows]?.partImage,
                 let portraitMatte = self.portraitMatte {
                 // 眉画像を元に厚い眉を作る
                 let filter = CIShiftAndStack()
                 filter.inputImage = partImage
-                filter.matte = eyebowMatte
+                filter.matte = eyebrowMatte
                 filter.startAngle = CGFloat(faceRoll)
                 filter.times = times
                 filter.radius = shiftRadius
                 // 眉matteも厚くする
                 let matteFilter = CIThickenMatte()
-                matteFilter.inputImage = eyebowMatte
+                matteFilter.inputImage = eyebrowMatte
                 matteFilter.portraitMatte = portraitMatte
 
-                setupAndCompute(part: .thickEyebow, photo: filter.outputImage!, matte: matteFilter.outputImage!)
+                setupAndCompute(part: .thickEyebrows, photo: filter.outputImage!, matte: matteFilter.outputImage!)
             }
         }
     }
@@ -274,10 +274,10 @@ class ColorChanger: ObservableObject {
     
     func makeImage() {
         guard checkSegmentation == false else { return }
-        guard checkEyebowPart == false
+        guard checkEyebrowPart == false
         else {
-//            if let matte = self.eyebowColorist.matte, let image = self.eyebowColorist.partImage {
-            if let matte = facePartColorists[.eyebow]?.matte, let image = facePartColorists[.eyebow]?.coloredPart {
+//            if let matte = self.eyebrowColorist.matte, let image = self.eyebrowColorist.partImage {
+            if let matte = facePartColorists[.eyebrows]?.matte, let image = facePartColorists[.eyebrows]?.coloredPart {
                 // 背景用フィルター
                 let gradientFilter = CIFilter.linearGradient()
                 gradientFilter.point0 = CGPoint(x: 0, y: 0)
@@ -297,10 +297,10 @@ class ColorChanger: ObservableObject {
                 compositeFilter.backgroundImage = compositeFilter.outputImage!
                 compositeFilter.inputImage = image.transformed(by: lowerTrans)
                 
-                if thickenEyebow  == true,
-                   let thickMatte = facePartColorists[.thickEyebow]?.matte,
-//                   let thickeImage = self.eyebowColorist2.partImage {
-                    let thickeImage = facePartColorists[.thickEyebow]?.coloredPart {
+                if thickenEyebrow  == true,
+                   let thickMatte = facePartColorists[.thickEyebrows]?.matte,
+//                   let thickeImage = self.eyebrowColorist2.partImage {
+                    let thickeImage = facePartColorists[.thickEyebrows]?.coloredPart {
                     maskFIlter.inputImage = thickMatte
                     var lowerTrans = CGAffineTransform(CGPoint(x: 0, y: -300))
                     compositeFilter.backgroundImage = compositeFilter.outputImage!
@@ -323,14 +323,14 @@ class ColorChanger: ObservableObject {
             return
         }
         
-        let eyebowImage:CIImage?
-        if thickenEyebow  == true {
-            eyebowImage = facePartColorists[.thickEyebow]?.coloredPart
+        let eyebrowImage:CIImage?
+        if thickenEyebrow  == true {
+            eyebrowImage = facePartColorists[.thickEyebrows]?.coloredPart
         } else {
-            eyebowImage = facePartColorists[.eyebow]?.coloredPart
+            eyebrowImage = facePartColorists[.eyebrows]?.coloredPart
         }
         
-        guard let eyebowImage = eyebowImage
+        guard let eyebrowImage = eyebrowImage
         else {
             let cgImage = linearContext.createCGImage(photoImage, from: photoImage.extent)
             self.image = UIImage(cgImage: cgImage!)
@@ -349,7 +349,7 @@ class ColorChanger: ObservableObject {
         compositeFilter.backgroundImage = photoImage
         compositeFilter.backgroundImage = compositeFilter.outputImage!
         // 色変更した眉を元写真と合成
-        compositeFilter.inputImage = eyebowImage
+        compositeFilter.inputImage = eyebrowImage
         
         let newImage = compositeFilter.outputImage!
         // Imageクラスで描画されるようにCGImage経由でUIImageに変換する必要がある
@@ -357,7 +357,7 @@ class ColorChanger: ObservableObject {
         self.image = UIImage(cgImage: cgImage!)
     }
     
-    func getEyebowMatte() -> CIImage? {
+    func getEyebrowMatte() -> CIImage? {
         guard let photoImage = self.photoImage
               , let hairMatte = self.hairMatte
               , let skinMatte = self.skinMatte
@@ -368,26 +368,26 @@ class ColorChanger: ObservableObject {
 
         getFaceData()
 
-        guard let baseRightEyebowPoints = rightEyebowPoints, let baseLeftEyebowPoints = leftEyebowPoints
+        guard let baseRightEyebrowPoints = rightEyebrowPoints, let baseLeftEyebrowPoints = leftEyebrowPoints
         else {
             return nil
         }
         
         let roll = CGFloat(-faceRoll)
-        let expandedRightEyebowPoints
-            = baseRightEyebowPoints.expandEyebow(expantionRate, aspect: eyebowAspect, angle: roll)
-        let expandedLeftEyebowPoints
-            = baseLeftEyebowPoints.expandEyebow(expantionRate, aspect: eyebowAspect, angle: roll)
-//        print("new rightEyebowPoints")
-//        print(expandedRightEyebowPoints)
-//        print("new leftEyebowPoints")
-//        print(expandedLeftEyebowPoints)
+        let expandedRightEyebrowPoints
+            = baseRightEyebrowPoints.expandEyebrow(expantionRate, aspect: eyebrowAspect, angle: roll)
+        let expandedLeftEyebrowPoints
+            = baseLeftEyebrowPoints.expandEyebrow(expantionRate, aspect: eyebrowAspect, angle: roll)
+//        print("new rightEyebrowPoints")
+//        print(expandedRightEyebrowPoints)
+//        print("new leftEyebrowPoints")
+//        print(expandedLeftEyebrowPoints)
         
-        var connectedEybowPoints
-            = connectEyebow(rightEyebow: baseRightEyebowPoints, leftEyebow: baseLeftEyebowPoints)
+        var connectedEybrowPoints
+            = connectEyebrow(rightEyebrow: baseRightEyebrowPoints, leftEyebrow: baseLeftEyebrowPoints)
         
         var connectedExtended
-            = connectEyebow(rightEyebow: expandedRightEyebowPoints, leftEyebow: expandedLeftEyebowPoints)
+            = connectEyebrow(rightEyebrow: expandedRightEyebrowPoints, leftEyebrow: expandedLeftEyebrowPoints)
         
         // 左眉と右眉の領域の交差をチェックし、交差している場合は2点を交点にまとめる
         let lowerIntersection = calculateIntersection(
@@ -405,16 +405,16 @@ class ColorChanger: ObservableObject {
             connectedExtended[2] = intersection
         }
 
-        let eyebowFIlter = CIGetEyebowMatte()
-        eyebowFIlter.inputImage = hairMatte
-        eyebowFIlter.backgroundImage = skinMatte
-        eyebowFIlter.eyebowPoints = connectedExtended
+        let eyebrowFIlter = CIGetEyebrowMatte()
+        eyebrowFIlter.inputImage = hairMatte
+        eyebrowFIlter.backgroundImage = skinMatte
+        eyebrowFIlter.eyebrowPoints = connectedExtended
         
         // 眉のランドマークを拡大したことで顔の外を取ってしまうケースがあるのでportraitMatteを減算する
         let infIlter = CIFilter.sourceInCompositing()
         let maskFilter = CIFilter.maskToAlpha()
         maskFilter.inputImage = self.portraitMatte
-        infIlter.inputImage = eyebowFIlter.outputImage!
+        infIlter.inputImage = eyebrowFIlter.outputImage!
         infIlter.backgroundImage = maskFilter.outputImage!
 
         // MARK: 目も取ってしまうケースがあるので、本来なら目のランドマーク分を除去する必要がある
@@ -423,9 +423,9 @@ class ColorChanger: ObservableObject {
         // 最終出力はsRGB色空間でないと色がおかしくなるが、色計算はリニア色空間でないとおかしくなる。
         // CIImage単位で色空間を制御する方法がよくわからないので、
         // とりあえずmatteをCGImageに変換して色空間をリニアで確定させてからCIImageに戻す
-        let eyebowMatte = infIlter.outputImage!
-        let cgImage = linearContext.createCGImage(eyebowMatte, from: eyebowMatte.extent)
-        let linearEyebowMatte = CIImage(cgImage: cgImage!)
+        let eyebrowMatte = infIlter.outputImage!
+        let cgImage = linearContext.createCGImage(eyebrowMatte, from: eyebrowMatte.extent)
+        let linearEyebrowMatte = CIImage(cgImage: cgImage!)
         
         // 領域チェック用 START
         if checkSegmentation == true {
@@ -444,12 +444,12 @@ class ColorChanger: ObservableObject {
             clampFilter.inputImage = invertSkin
             let redSkin = clampFilter.outputImage!
             clampFilter.maxComponents = CIVector(x: 0, y: 1, z: 1, w: 1)
-            clampFilter.inputImage = linearEyebowMatte
-            let greenEyebow = clampFilter.outputImage!
+            clampFilter.inputImage = linearEyebrowMatte
+            let greenEyebrow = clampFilter.outputImage!
             
             let addFilter = CIFilter.additionCompositing()
             addFilter.inputImage = redSkin
-            addFilter.backgroundImage = greenEyebow
+            addFilter.backgroundImage = greenEyebrow
             let compareImage = addFilter.outputImage!
             let cgImage2 = linearContext.createCGImage(compareImage, from: compareImage.extent)
             let linearCompare = CIImage(cgImage: cgImage2!)
@@ -467,20 +467,20 @@ class ColorChanger: ObservableObject {
             cgContext?.draw(cgImage2!, in: photoRect)
             cgContext?.setLineWidth(4.0)
             cgContext?.setStrokeColor(UIColor.green.cgColor)
-            cgContext?.addLines(between: baseRightEyebowPoints)
-            cgContext?.addLines(between: baseLeftEyebowPoints)
+            cgContext?.addLines(between: baseRightEyebrowPoints)
+            cgContext?.addLines(between: baseLeftEyebrowPoints)
             cgContext?.strokePath()
             
             cgContext?.setStrokeColor(UIColor.cyan.cgColor)
-            cgContext?.addLines(between: expandedRightEyebowPoints)
-            cgContext?.addLines(between: expandedLeftEyebowPoints)
+            cgContext?.addLines(between: expandedRightEyebrowPoints)
+            cgContext?.addLines(between: expandedLeftEyebrowPoints)
             cgContext?.strokePath()
             cgContext?.setStrokeColor(UIColor.magenta.cgColor)
             cgContext?.addLines(between: connectedExtended)
             cgContext?.strokePath()
             
-            let rightCenter = baseRightEyebowPoints.getEyebowCenter()
-            let leftCenter = baseLeftEyebowPoints.getEyebowCenter()
+            let rightCenter = baseRightEyebrowPoints.getEyebrowCenter()
+            let leftCenter = baseLeftEyebrowPoints.getEyebrowCenter()
             cgContext?.setFillColor(UIColor.yellow.cgColor)
             let rightRect = CGRect(origin: rightCenter, radius: pointRadius)
             let leftRect = CGRect(origin: leftCenter, radius: pointRadius)
@@ -488,7 +488,7 @@ class ColorChanger: ObservableObject {
             cgContext?.fillEllipse(in: leftRect)
             
             cgContext?.setStrokeColor(UIColor.magenta.cgColor)
-            cgContext?.addLines(between: connectedEybowPoints)
+            cgContext?.addLines(between: connectedEybrowPoints)
             cgContext?.strokePath()
 
             let newImage = cgContext?.makeImage()
@@ -496,11 +496,11 @@ class ColorChanger: ObservableObject {
         }
         // 領域チェック用 END
 
-//        saveCIImage(linearEyebowMatte)
+//        saveCIImage(linearEyebrowMatte)
 //        saveCIImage(invertSkin)
 //        saveCIImage(invertHair)
 
-        return linearEyebowMatte
+        return linearEyebrowMatte
     }
     
     func getFaceData() {
@@ -548,13 +548,13 @@ class ColorChanger: ObservableObject {
             }
             
             for observation in results {
-                self.rightEyebowPoints = observation.landmarks?.rightEyebrow?.pointsInImage(imageSize: matteSize)
-                self.leftEyebowPoints = observation.landmarks?.leftEyebrow?.pointsInImage(imageSize: matteSize)
+                self.rightEyebrowPoints = observation.landmarks?.rightEyebrow?.pointsInImage(imageSize: matteSize)
+                self.leftEyebrowPoints = observation.landmarks?.leftEyebrow?.pointsInImage(imageSize: matteSize)
                 
 //                print("rightEyebrow:")
-//                print(self.rightEyebowPoints)
+//                print(self.rightEyebrowPoints)
 //                print("leftEyebrow:")
-//                print(self.leftEyebowPoints)
+//                print(self.leftEyebrowPoints)
                 
 //                print("VNFaceObservation angle")
 //                print(observation.roll)
@@ -568,15 +568,15 @@ class ColorChanger: ObservableObject {
         try? handler.perform([visionRequest])
     }
     
-    func connectEyebow(rightEyebow: [CGPoint], leftEyebow: [CGPoint]) -> [CGPoint] {
-        guard rightEyebow.count == 6, leftEyebow.count == 6 else {return []}
-        var connectedEybowPoints: [CGPoint] = []
-        connectedEybowPoints.append(contentsOf: rightEyebow[0...2])
-        connectedEybowPoints.append(contentsOf: leftEyebow[0...2].reversed())
-        connectedEybowPoints.append(contentsOf: leftEyebow[3...5].reversed())
-        connectedEybowPoints.append(contentsOf: rightEyebow[3...5])
+    func connectEyebrow(rightEyebrow: [CGPoint], leftEyebrow: [CGPoint]) -> [CGPoint] {
+        guard rightEyebrow.count == 6, leftEyebrow.count == 6 else {return []}
+        var connectedEyebrowPoints: [CGPoint] = []
+        connectedEyebrowPoints.append(contentsOf: rightEyebrow[0...2])
+        connectedEyebrowPoints.append(contentsOf: leftEyebrow[0...2].reversed())
+        connectedEyebrowPoints.append(contentsOf: leftEyebrow[3...5].reversed())
+        connectedEyebrowPoints.append(contentsOf: rightEyebrow[3...5])
         
-        return connectedEybowPoints
+        return connectedEyebrowPoints
     }
 
     func calculateIntersection(_ lineA: (start: CGPoint, end: CGPoint), _ lineB: (start: CGPoint, end: CGPoint)) -> CGPoint? {
@@ -617,9 +617,9 @@ class ColorChanger: ObservableObject {
         hairMatte = nil
         skinMatte = nil
         portraitMatte = nil
-        eyebowMatte = nil
-        rightEyebowPoints = nil
-        leftEyebowPoints = nil
+        eyebrowMatte = nil
+        rightEyebrowPoints = nil
+        leftEyebrowPoints = nil
         faceRoll = 0
     }
     

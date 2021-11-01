@@ -10,7 +10,7 @@ extern "C" { namespace coreimage {
         int count;
     };
     
-    float4 getEyebowMatte(sampler src, sampler bkg,
+    float4 getEyebrowMatte(sampler src, sampler bkg,
                                    float p1x, float p1y,
                                    float p2x, float p2y,
                                    float p3x, float p3y,
@@ -80,7 +80,7 @@ extern "C" { namespace coreimage {
         return color;
     }
 
-    float4 getEyebowMatte11P(sampler src, sampler bkg,
+    float4 getEyebrowMatte11P(sampler src, sampler bkg,
                                    float p1x, float p1y,
                                    float p2x, float p2y,
                                    float p3x, float p3y,
@@ -148,7 +148,7 @@ extern "C" { namespace coreimage {
         return color;
     }
     
-    float4 getEyebowMatte10P(sampler src, sampler bkg,
+    float4 getEyebrowMatte10P(sampler src, sampler bkg,
                                    float p1x, float p1y,
                                    float p2x, float p2y,
                                    float p3x, float p3y,
