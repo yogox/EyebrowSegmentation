@@ -348,9 +348,10 @@ class CIShiftAndStack: CIFilter {
 
 class CIThickenMatte: CIFilter {
     var inputImage: CIImage?
+    var portraitMatte: CIImage?
 
     override var outputImage: CIImage? {
-        guard let inputImage = inputImage else { return nil }
+        guard let inputImage = inputImage, let portraitMatte = portraitMatte else { return nil }
         
         let polyFilter = CIFilter.colorPolynomial()
         let colorVector = CIVector(x: 0, y: 3, z: 0, w: 0)
@@ -364,9 +365,15 @@ class CIThickenMatte: CIFilter {
         bloomFilter.radius = 5
         bloomFilter.intensity = 0.75
 
+        let infIlter = CIFilter.sourceInCompositing()
+        let maskFilter = CIFilter.maskToAlpha()
+        maskFilter.inputImage = portraitMatte
+        infIlter.inputImage = bloomFilter.outputImage!
+        infIlter.backgroundImage = maskFilter.outputImage!
+        
         // clampでコンポーネントの範囲を0〜1に絞らないとオーバーフローしたピクセルの処理がおかしくなる
         let clampFilter = CIFilter.colorClamp()
-        clampFilter.inputImage = bloomFilter.outputImage!
+        clampFilter.inputImage = infIlter.outputImage!
         
         return clampFilter.outputImage!
     }

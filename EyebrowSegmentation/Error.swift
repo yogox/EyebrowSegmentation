@@ -11,6 +11,7 @@ import Foundation
 class MyError {
     private var message: String = ""
     enum ErrorMessage: String {
+        case portraitFailure = "No object with portrait."
         case segmentaionFailure = "No object with segmentation."
         case ciDetectorFailure = "Cound not get face angle."
         case ciDetectorNoHuman = "There is no human.(CIDetector)"

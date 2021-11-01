@@ -182,6 +182,7 @@ class ColorChanger: ObservableObject {
     var originalPhoto: CIImage?
     var hairMatte: CIImage?
     var skinMatte: CIImage?
+    var portraitMatte: CIImage?
     var eyebowMatte: CIImage?
     var rightEyebowPoints: [CGPoint]?
     var leftEyebowPoints: [CGPoint]?
@@ -205,7 +206,7 @@ class ColorChanger: ObservableObject {
         }
     }
 
-    func setupPhoto(_ photo: CIImage, _ hairMatte: CIImage, _ skinMatte: CIImage) {
+    func setupPhoto(_ photo: CIImage, _ hairMatte: CIImage, _ skinMatte: CIImage, _ portraitMatte: CIImage) {
         self.originalPhoto = photo
 
         // Matte画像に合わせて写真のスケールを縮小
@@ -216,6 +217,7 @@ class ColorChanger: ObservableObject {
         
         self.hairMatte = hairMatte
         self.skinMatte = skinMatte
+        self.portraitMatte = portraitMatte
         // photoとmatteから眉のmatteを作る
         self.eyebowMatte = getEyebowMatte()
         
@@ -223,7 +225,9 @@ class ColorChanger: ObservableObject {
         
         if let photoImage = self.photoImage, let eyebowMatte = self.eyebowMatte {
             setupAndCompute(part: .eyebow, photo: photoImage, matte: eyebowMatte)
-            if self.thickenEyebow == true, let partImage = facePartColorists[.eyebow]?.partImage {
+            if self.thickenEyebow == true,
+                let partImage = facePartColorists[.eyebow]?.partImage,
+                let portraitMatte = self.portraitMatte {
                 // 眉画像を元に厚い眉を作る
                 let filter = CIShiftAndStack()
                 filter.inputImage = partImage
@@ -234,6 +238,7 @@ class ColorChanger: ObservableObject {
                 // 眉matteも厚くする
                 let matteFilter = CIThickenMatte()
                 matteFilter.inputImage = eyebowMatte
+                matteFilter.portraitMatte = portraitMatte
 
                 setupAndCompute(part: .thickEyebow, photo: filter.outputImage!, matte: matteFilter.outputImage!)
             }
@@ -404,11 +409,21 @@ class ColorChanger: ObservableObject {
         eyebowFIlter.inputImage = hairMatte
         eyebowFIlter.backgroundImage = skinMatte
         eyebowFIlter.eyebowPoints = connectedExtended
+        
+        // 眉のランドマークを拡大したことで顔の外を取ってしまうケースがあるのでportraitMatteを減算する
+        let infIlter = CIFilter.sourceInCompositing()
+        let maskFilter = CIFilter.maskToAlpha()
+        maskFilter.inputImage = self.portraitMatte
+        infIlter.inputImage = eyebowFIlter.outputImage!
+        infIlter.backgroundImage = maskFilter.outputImage!
+
+        // MARK: 目も取ってしまうケースがあるので、本来なら目のランドマーク分を除去する必要がある
+        // 自分が最終的に作りたいものには不要となる処理なので追加しない
 
         // 最終出力はsRGB色空間でないと色がおかしくなるが、色計算はリニア色空間でないとおかしくなる。
         // CIImage単位で色空間を制御する方法がよくわからないので、
         // とりあえずmatteをCGImageに変換して色空間をリニアで確定させてからCIImageに戻す
-        let eyebowMatte = eyebowFIlter.outputImage!
+        let eyebowMatte = infIlter.outputImage!
         let cgImage = linearContext.createCGImage(eyebowMatte, from: eyebowMatte.extent)
         let linearEyebowMatte = CIImage(cgImage: cgImage!)
         
@@ -601,6 +616,7 @@ class ColorChanger: ObservableObject {
         photoImage = nil
         hairMatte = nil
         skinMatte = nil
+        portraitMatte = nil
         eyebowMatte = nil
         rightEyebowPoints = nil
         leftEyebowPoints = nil

@@ -31,8 +31,8 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
     private var dataOutput: [CameraPosition: AVCapturePhotoOutput] = [:]
     private var currentCameraPosition: CameraPosition
     private let semaphore = DispatchSemaphore(value: 0)
-    var result: (photo: CIImage?, hairMatte: CIImage?, skinMatte: CIImage?)
-    
+    var result: (photo: CIImage?, hairMatte: CIImage?, skinMatte: CIImage?, portraitMatte: CIImage?)
+
     private var error = MyError()
 
     override init() {
@@ -107,6 +107,8 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
         settings.enabledSemanticSegmentationMatteTypes = dataOutput[currentCameraPosition]?.availableSemanticSegmentationMatteTypes ?? [AVSemanticSegmentationMatte.MatteType]()
         // セグメンテーションのため試験的に高解像度設定
         settings.isHighResolutionPhotoEnabled = true
+        // PortraitEffectsMatteの設定
+        settings.isPortraitEffectsMatteDeliveryEnabled = true
         
         dataOutput[currentCameraPosition]?.capturePhoto(with: settings, delegate: self)
     }
@@ -133,8 +135,9 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
 
             self.result = (ciImage.oriented(.right)
                            , hairImage!.oriented(.right)
-                           , skinImage!.oriented(.right))
-            
+                           , skinImage!.oriented(.right)
+                           , nil)
+
             // 画像保存
 //            saveCIImage(ciImage)
 //            saveCIImage(hairImage!)
@@ -142,10 +145,18 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
         } else {
             self.error.setError(.segmentaionFailure)
         }
+        
+        // portraitMatteを取得
+        if let portraitMatte = photo.portraitEffectsMatte {
+            let portraitImage = CIImage(portaitEffectsMatte: portraitMatte, options: [.auxiliaryPortraitEffectsMatte: true])
+            self.result = (result.photo, result.hairMatte, result.skinMatte, portraitImage!.oriented(.right))
+        } else {
+            self.error.setError(.portraitFailure)
+        }
     }
     
     func clearResult() {
-        self.result = (nil, nil, nil)
+        self.result = (nil, nil, nil, nil)
     }
     
     func photoOutput(_ output: AVCapturePhotoOutput,
