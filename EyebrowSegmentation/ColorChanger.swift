@@ -320,6 +320,7 @@ class ColorChanger: ObservableObject {
         guard let photoImage = self.photoImage
         else {
             self.image = nil
+            error.setError(.photoImageError)
             return
         }
         
@@ -332,8 +333,10 @@ class ColorChanger: ObservableObject {
         
         guard let eyebrowImage = eyebrowImage
         else {
-            let cgImage = linearContext.createCGImage(photoImage, from: photoImage.extent)
-            self.image = UIImage(cgImage: cgImage!)
+//            let cgImage = linearContext.createCGImage(photoImage, from: photoImage.extent)
+//            self.image = UIImage(cgImage: cgImage!)
+            self.image = nil
+            error.setError(.eyebrowImageError)
             return
         }
         
@@ -343,6 +346,7 @@ class ColorChanger: ObservableObject {
         else {
             let cgImage = linearContext.createCGImage(photoImage, from: photoImage.extent)
             self.image = UIImage(cgImage: cgImage!)
+            error.setError(.hairImageError)
             return
         }
         compositeFilter.inputImage = hairImage

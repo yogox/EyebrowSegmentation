@@ -17,6 +17,9 @@ class MyError {
         case ciDetectorNoHuman = "There is no human.(CIDetector)"
         case visionFailure = "Cound not get eyebrow data."
         case visionFailureNoHuman = "There is no human.(Vision)"
+        case photoImageError = "Photo image nil."
+        case hairImageError = "Coloring hair image failed."
+        case eyebrowImageError = "Coloring eyebrow image failed."
     }
     
     func setError(_ errorMessage: ErrorMessage) {
