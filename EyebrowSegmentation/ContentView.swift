@@ -334,7 +334,22 @@ struct TransferPhotoView: View {
 
                 Spacer()
 
-                Spacer()
+//                Spacer()
+                // 表示テストとして眉の切り替え/コントラスト調整を追加
+                Button(action: {
+//                    self.colorChanger.contrast.toggle()
+                    self.colorChanger.isThick.toggle()
+                    self.colorChanger.makeImage()
+                }) {
+//                    if self.colorChanger.contrast == true {
+                    if self.colorChanger.isThick == true {
+//                        Text("contrast").foregroundColor(.white)
+                        Text("Thick").foregroundColor(.white).bold()
+                    } else {
+//                        Text("contrast").foregroundColor(.gray)
+                        Text("Thick").foregroundColor(.gray)
+                    }
+                }
 
                 Spacer()
             }

@@ -198,11 +198,13 @@ class ColorChanger: ObservableObject {
     let eyebrowAspect: CGFloat = 2.0
     var printRange = true
     var thickenEyebrow = true
-    let blurRadius:Float = 6
-    let shiftRadius:CGFloat = 5
+    let shiftRadius:CGFloat = 3
     let times = 4
     var checkSegmentation = false
     var checkEyebrowPart = false
+    // 表示テスト
+//    @Published var contrast = false
+    @Published var isThick = false
 
     private var error = MyError()
 
@@ -336,7 +338,9 @@ class ColorChanger: ObservableObject {
         }
         
         let eyebrowImage:CIImage?
-        if thickenEyebrow  == true {
+        // 表示テスト
+//        if thickenEyebrow  == true {
+        if isThick  == true {
             eyebrowImage = facePartColorists[.thickEyebrows]?.coloredPart
         } else {
             eyebrowImage = facePartColorists[.eyebrows]?.coloredPart
@@ -353,6 +357,8 @@ class ColorChanger: ObservableObject {
         
         // 合成用フィルターを定義
         let compositeFilter = CIFilter.sourceOverCompositing()
+        
+        // 色変更した髪を元写真と合成
         guard let hairImage = facePartColorists[.hair]?.coloredPart
         else {
             let cgImage = linearContext.createCGImage(photoImage, from: photoImage.extent)
@@ -363,8 +369,17 @@ class ColorChanger: ObservableObject {
         compositeFilter.inputImage = hairImage
         compositeFilter.backgroundImage = photoImage
         compositeFilter.backgroundImage = compositeFilter.outputImage!
-        // 色変更した眉を元写真と合成
+        
+        // さらに色変更した眉を合成
+        // 表示テストとして眉のコントラストを調整する
+//        if contrast == false {
         compositeFilter.inputImage = eyebrowImage
+//        } else {
+//            let contrastFilter = CIFilter.colorControls()
+//            contrastFilter.inputImage = eyebrowImage
+//            contrastFilter.contrast = 1.1
+//            compositeFilter.inputImage = contrastFilter.outputImage!
+//        }
         
         let newImage = compositeFilter.outputImage!
         // Imageクラスで描画されるようにCGImage経由でUIImageに変換する必要がある

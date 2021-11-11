@@ -362,7 +362,7 @@ class CIThickenMatte: CIFilter {
 
         let bloomFilter = CIFilter.bloom()
         bloomFilter.inputImage = polyFilter.outputImage!
-        bloomFilter.radius = 5
+        bloomFilter.radius = 3
         bloomFilter.intensity = 0.75
 
         let infIlter = CIFilter.sourceInCompositing()
