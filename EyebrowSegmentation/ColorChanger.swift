@@ -62,7 +62,6 @@ class FacePartColorist {
     var modeColor: CIColor?
     var maxColor: CIColor?
     var gradientImage: CIImage?
-    var printRange = true
 
     func setupPhoto(_ photo: CIImage, _ matte: CIImage) {
         self.matte = matte
@@ -119,29 +118,37 @@ class FacePartColorist {
         mapFIlter.inputImage = partImage
         mapFIlter.gradientImage = gradientFilter.outputImage!
         
-        if self.printRange {
-            let compositeFilter = CIFilter.sourceOverCompositing()
-            let newPhoto = mapFIlter.outputImage!
-            // 識別用文字列
-            var text = String()
-            text += String(format: "min(%.4f) - ", minLightness)
-            text += String(format: "max(%.4f)", maxLightness)
-            // 識別用テキストを画像化
-            let textFilter = CIFilter.textImageGenerator()
-            textFilter.fontSize = 30
-            textFilter.text = text
-            let clumpFilter = CIFilter.colorClamp()
-            clumpFilter.inputImage = textFilter.outputImage!
-            clumpFilter.minComponents = CIVector(x: 1, y: 1, z: 1, w: 0)
-            // 合成写真を回転して識別用テキストを合成
-            compositeFilter.inputImage = clumpFilter.outputImage!
-            compositeFilter.backgroundImage = newPhoto
-            
-            self.coloredPart = compositeFilter.outputImage!
-            return
-        }
-        
         self.coloredPart = mapFIlter.outputImage!
+    }
+    
+    func printRange(_ y: CGFloat) {
+        guard let coloredPart = self.coloredPart,
+              let minLightness = self.minLightness,
+              let modeLightness = self.modeLightness,
+              let maxLightness = self.maxLightness
+        else { return }
+        
+        let compositeFilter = CIFilter.sourceOverCompositing()
+
+        // 識別用文字列
+        var text = String()
+        text += String(format: "min(%.4f) - ", minLightness)
+        text += String(format: "mode(%.4f) - ", modeLightness)
+        text += String(format: "max(%.4f)", maxLightness)
+        // 識別用テキストを画像化
+        let textFilter = CIFilter.textImageGenerator()
+        textFilter.fontSize = 30
+        textFilter.text = text
+        let clumpFilter = CIFilter.colorClamp()
+        clumpFilter.inputImage = textFilter.outputImage!
+        clumpFilter.minComponents = CIVector(x: 1, y: 1, z: 1, w: 0)
+        
+        let trans = CGAffineTransform(CGPoint(x: 0, y: y))
+        // 合成写真を回転して識別用テキストを合成
+        compositeFilter.inputImage = clumpFilter.outputImage!.transformed(by: trans)
+        compositeFilter.backgroundImage = coloredPart
+        
+        self.coloredPart = compositeFilter.outputImage!
     }
 
     func clear() {
@@ -315,6 +322,10 @@ class ColorChanger: ObservableObject {
                 self.image = UIImage(cgImage: cgImage!)
             }
             return
+        }
+        
+        for part in FacePart.allCases {
+            facePartColorists[part]?.printRange(CGFloat(part.rawValue * 50))
         }
         
         guard let photoImage = self.photoImage
