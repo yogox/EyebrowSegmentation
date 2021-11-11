@@ -268,6 +268,15 @@ extern "C" { namespace coreimage {
         
         // 最頻値から明度を逆算
         modeLightness = float(modeIndex) / (BIN_NUM - 1);
+        // BIN_NUMが粗すぎると最頻値がfloorで0に丸められて最小値より低くなってしまう場合がある
+        if (modeLightness < minLightness) {
+            // 最小値と最大値の適当な中間値を設定
+//            modeLightness = minLightness;
+//            modeLightness = (minLightness + maxLightness) / 2;
+//            modeLightness = (minLightness * 0.65) + (maxLightness * 0.35);
+            // 試してみた感じこれくらいの比率がよさげ
+            modeLightness = (minLightness * 0.75) + (maxLightness * 0.25);
+        }
         
         // 各明度で色を構成
         lightnessInfo = float4(minLightness, modeLightness, maxLightness, 1.0);
