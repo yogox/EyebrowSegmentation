@@ -459,7 +459,7 @@ class ColorChanger: ObservableObject {
         
         // 領域チェック用 START
         if checkSegmentation == true {
-            let pointRadius: CGFloat = 10
+            let pointDiameter: CGFloat = 10
             
             let invertFilter = CIFilter.colorInvert()
             invertFilter.inputImage = hairMatte
@@ -512,8 +512,8 @@ class ColorChanger: ObservableObject {
             let rightCenter = baseRightEyebrowPoints.getEyebrowCenter()
             let leftCenter = baseLeftEyebrowPoints.getEyebrowCenter()
             cgContext?.setFillColor(UIColor.yellow.cgColor)
-            let rightRect = CGRect(origin: rightCenter, radius: pointRadius)
-            let leftRect = CGRect(origin: leftCenter, radius: pointRadius)
+            let rightRect = CGRect(origin: rightCenter, diameter: pointDiameter)
+            let leftRect = CGRect(origin: leftCenter, diameter: pointDiameter)
             cgContext?.fillEllipse(in: rightRect)
             cgContext?.fillEllipse(in: leftRect)
             
