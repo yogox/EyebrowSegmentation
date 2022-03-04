@@ -39,9 +39,9 @@ func / (right: CGPoint, left: Int) -> CGPoint {
 }
 
 extension CGRect {
-    init(origin: CGPoint, radius: CGFloat) {
-        let center = origin - CGPoint(x: radius/2, y: radius/2)
-        let size = CGSize(width: radius, height: radius)
+    init(origin: CGPoint, diameter: CGFloat) {
+        let center = origin - CGPoint(x: diameter/2, y: diameter/2)
+        let size = CGSize(width: diameter, height: diameter)
         self.init(origin: center, size: size)
     }
 }
